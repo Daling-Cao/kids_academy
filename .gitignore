@@ -6,3 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+database.sqlite
+temp.txt
+fix*.cjs
+fix*.js
+uploads/
+metadata.json

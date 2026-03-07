@@ -2,51 +2,63 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import Door from '../components/Door';
+import { authFetch } from '../App';
+import type { User, Building, ProjectWithState } from '../types';
 
-export default function BuildingView({ user }: { user: any }) {
+export default function BuildingView({ user }: { user: User }) {
   const { buildingId } = useParams();
-  const [projects, setProjects] = useState<any[]>([]);
-  const [building, setBuilding] = useState<any>(null);
+  const [projects, setProjects] = useState<ProjectWithState[]>([]);
+  const [building, setBuilding] = useState<Building | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Fetch building details
-    fetch('/api/buildings')
-      .then(res => res.json())
-      .then(data => {
-        const b = data.find((b: any) => b.id === Number(buildingId));
-        setBuilding(b);
-      });
+    setLoading(true);
+    setError('');
 
-    // Fetch projects for this building
-    fetch(`/api/student/buildings/${buildingId}/projects/${user.id}`)
-      .then(res => res.json())
-      .then(data => setProjects(data));
+    Promise.all([
+      authFetch(`/api/buildings/${buildingId}`).then(res => {
+        if (!res.ok) throw new Error('Failed to load building');
+        return res.json();
+      }),
+      authFetch(`/api/student/buildings/${buildingId}/projects/${user.id}`).then(res => {
+        if (!res.ok) throw new Error('Failed to load projects');
+        return res.json();
+      }),
+    ])
+      .then(([buildingData, projectsData]) => {
+        setBuilding(buildingData);
+        setProjects(projectsData);
+      })
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
   }, [buildingId, user.id]);
 
-  const handleDoorClick = async (project: any) => {
+  const handleDoorClick = async (project: ProjectWithState) => {
     if (project.state === 'locked') {
       alert('This classroom is locked! Complete the previous one first.');
       return;
     }
-    
+
     if (project.state === 'unlocked') {
-      await fetch(`/api/student/projects/${project.id}/start`, {
+      await authFetch(`/api/student/projects/${project.id}/start`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id })
       });
     }
-    
+
     navigate(`/classroom/${project.id}`);
   };
 
-  if (!building) return <div className="text-center p-8">Loading building...</div>;
+  if (loading) return <div className="text-center p-8 text-stone-500">Loading building...</div>;
+  if (error) return <div className="text-center p-8 text-red-500">{error}</div>;
+  if (!building) return <div className="text-center p-8 text-stone-500">Building not found.</div>;
 
   return (
     <div className="max-w-7xl mx-auto">
       <div className="flex items-center mb-8">
-        <button 
+        <button
           onClick={() => navigate('/dashboard')}
           className="flex items-center gap-2 text-orange-600 hover:text-orange-800 bg-orange-100 hover:bg-orange-200 px-4 py-2 rounded-xl transition-colors font-bold"
         >
@@ -58,14 +70,14 @@ export default function BuildingView({ user }: { user: any }) {
         {building.name}
       </h1>
       <p className="text-center text-stone-600 mb-12 max-w-2xl mx-auto">{building.description}</p>
-      
+
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8 justify-items-center">
         {projects.map((project, index) => (
-          <Door 
-            key={project.id} 
-            project={project} 
-            index={index} 
-            onClick={() => handleDoorClick(project)} 
+          <Door
+            key={project.id}
+            project={project}
+            index={index}
+            onClick={() => handleDoorClick(project)}
           />
         ))}
         {projects.length === 0 && (

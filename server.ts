@@ -1,6 +1,93 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import { createServer as createViteServer } from 'vite';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import DOMPurify from 'isomorphic-dompurify';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import db from './src/db.js';
+
+// JWT secret — in production, use a strong secret from env
+const JWT_SECRET = process.env.JWT_SECRET || 'kids-academy-secret-key-change-in-production';
+
+// ─── Multer config for image uploads ────────────────────────────────
+const uploadsDir = path.resolve(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadsDir),
+  filename: (_req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname);
+    cb(null, uniqueSuffix + ext);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (_req, file, cb) => {
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  },
+});
+
+// ─── Auth middleware ────────────────────────────────────────────────
+interface AuthRequest extends Request {
+  user?: { id: number; username: string; role: string };
+}
+
+function authMiddleware(req: AuthRequest, res: Response, next: NextFunction): void {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    res.status(401).json({ success: false, message: 'No token provided' });
+    return;
+  }
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: number; username: string; role: string };
+    req.user = decoded;
+    next();
+  } catch {
+    res.status(401).json({ success: false, message: 'Invalid token' });
+  }
+}
+
+function teacherOnly(req: AuthRequest, res: Response, next: NextFunction): void {
+  if (req.user?.role !== 'teacher') {
+    res.status(403).json({ success: false, message: 'Teacher access only' });
+    return;
+  }
+  next();
+}
+function studentSelfOnly(req: AuthRequest, res: Response, next: NextFunction): void {
+  const targetUserId = req.params.userId || req.body.userId;
+  if (!targetUserId) {
+    next();
+    return;
+  }
+  if (req.user?.role !== 'teacher' && String(req.user?.id) !== String(targetUserId)) {
+    res.status(403).json({ success: false, message: 'Forbidden: You can only access your own data' });
+    return;
+  }
+  next();
+}
+
+// ─── Sanitize HTML content ──────────────────────────────────────────
+function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 's', 'h1', 'h2', 'h3', 'ol', 'ul', 'li', 'a', 'img', 'span', 'div', 'blockquote', 'pre', 'code'],
+    ALLOWED_ATTR: ['href', 'src', 'alt', 'class', 'style', 'target', 'width', 'height'],
+  });
+}
 
 async function startServer() {
   const app = express();
@@ -9,95 +96,52 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-  // API Routes
-  app.post('/api/login', (req, res) => {
+  // Serve uploaded files
+  app.use('/uploads', express.static(uploadsDir));
+
+  // ─── Public Routes ──────────────────────────────────────────────
+  app.post('/api/login', (req: Request, res: Response) => {
     const { username, password } = req.body;
-    const user = db.prepare('SELECT id, username, role FROM users WHERE username = ? AND password = ?').get(username, password);
-    if (user) {
-      res.json({ success: true, user });
-    } else {
+    const user = db.prepare('SELECT id, username, password, role FROM users WHERE username = ?').get(username) as any;
+
+    if (!user || !bcrypt.compareSync(password, user.password)) {
       res.status(401).json({ success: false, message: 'Invalid credentials' });
+      return;
     }
+
+    const token = jwt.sign(
+      { id: user.id, username: user.username, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      success: true,
+      user: { id: user.id, username: user.username, role: user.role },
+      token,
+    });
   });
 
-  // Get all students (Teacher)
-  app.get('/api/users', (req, res) => {
-    const users = db.prepare('SELECT id, username, role FROM users WHERE role = ?').all('student');
-    res.json(users);
-  });
-
-  // Add new student (Teacher)
-  app.post('/api/users', (req, res) => {
-    const { username, password } = req.body;
-    try {
-      const result = db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)')
-        .run(username, password, 'student');
-      res.json({ success: true, id: result.lastInsertRowid });
-    } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
-    }
-  });
-
-  // Update student (Teacher)
-  app.put('/api/users/:id', (req, res) => {
-    const { id } = req.params;
-    const { username, password } = req.body;
-    try {
-      db.prepare('UPDATE users SET username = ?, password = ? WHERE id = ? AND role = ?')
-        .run(username, password, id, 'student');
-      res.json({ success: true });
-    } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
-    }
-  });
-
-  // Delete student (Teacher)
-  app.delete('/api/users/:id', (req, res) => {
-    const { id } = req.params;
-    db.prepare('DELETE FROM user_progress WHERE userId = ?').run(id);
-    db.prepare('DELETE FROM users WHERE id = ? AND role = ?').run(id, 'student');
-    res.json({ success: true });
-  });
-
-  // Get student progress (Teacher)
-  app.get('/api/users/:id/progress', (req, res) => {
-    const { id } = req.params;
-    const progress = db.prepare(`
-      SELECT p.id as projectId, p.title, p.buildingId, b.name as buildingName, up.state 
-      FROM projects p 
-      LEFT JOIN buildings b ON p.buildingId = b.id
-      LEFT JOIN user_progress up ON p.id = up.projectId AND up.userId = ?
-      ORDER BY p.buildingId ASC, p.orderIndex ASC
-    `).all(id);
-    res.json(progress);
-  });
-
-  // Update student progress (Teacher)
-  app.put('/api/users/:id/progress/:projectId', (req, res) => {
-    const { id, projectId } = req.params;
-    const { state } = req.body; // 'locked', 'unlocked', 'in-progress', 'completed'
-    
-    if (state === 'locked') {
-      db.prepare('DELETE FROM user_progress WHERE userId = ? AND projectId = ?').run(id, projectId);
-    } else {
-      const existing = db.prepare('SELECT * FROM user_progress WHERE userId = ? AND projectId = ?').get(id, projectId);
-      if (existing) {
-        db.prepare('UPDATE user_progress SET state = ? WHERE userId = ? AND projectId = ?').run(state, id, projectId);
-      } else {
-        db.prepare('INSERT INTO user_progress (userId, projectId, state) VALUES (?, ?, ?)').run(id, projectId, state);
+  // ─── File Upload (authenticated) ─────────────────────────────────
+  app.post('/api/upload', authMiddleware, (req: AuthRequest, res: Response) => {
+    upload.single('image')(req, res, (err) => {
+      if (err) {
+        res.status(400).json({ success: false, message: err.message });
+        return;
       }
-    }
-    res.json({ success: true });
+      if (!req.file) {
+        res.status(400).json({ success: false, message: 'No file uploaded' });
+        return;
+      }
+      const url = `/uploads/${req.file.filename}`;
+      res.json({ success: true, url });
+    });
   });
 
-  // Get all buildings (Teacher & Student)
-  app.get('/api/buildings', (req, res) => {
-    const buildings = db.prepare('SELECT * FROM buildings ORDER BY orderIndex ASC').all();
-    res.json(buildings);
-  });
+  // ─── Student Routes (authenticated) ──────────────────────────────
 
   // Get visible buildings for a student
-  app.get('/api/student/buildings/:userId', (req, res) => {
+  app.get('/api/student/buildings/:userId', authMiddleware, studentSelfOnly, (req: AuthRequest, res: Response) => {
     const { userId } = req.params;
     const buildings = db.prepare(`
       SELECT b.* 
@@ -109,75 +153,13 @@ async function startServer() {
     res.json(buildings);
   });
 
-  // Get all buildings with visibility status for a student (Teacher)
-  app.get('/api/users/:id/buildings', (req, res) => {
-    const { id } = req.params;
-    const buildings = db.prepare(`
-      SELECT b.*, COALESCE(ubv.isVisible, 1) as isVisible
-      FROM buildings b
-      LEFT JOIN user_building_visibility ubv ON b.id = ubv.buildingId AND ubv.userId = ?
-      ORDER BY b.orderIndex ASC
-    `).all(id);
-    res.json(buildings);
-  });
-
-  // Update building visibility for a student (Teacher)
-  app.put('/api/users/:id/buildings/:buildingId', (req, res) => {
-    const { id, buildingId } = req.params;
-    const { isVisible } = req.body;
-    
-    const existing = db.prepare('SELECT * FROM user_building_visibility WHERE userId = ? AND buildingId = ?').get(id, buildingId);
-    if (existing) {
-      db.prepare('UPDATE user_building_visibility SET isVisible = ? WHERE userId = ? AND buildingId = ?').run(isVisible ? 1 : 0, id, buildingId);
-    } else {
-      db.prepare('INSERT INTO user_building_visibility (userId, buildingId, isVisible) VALUES (?, ?, ?)').run(id, buildingId, isVisible ? 1 : 0);
-    }
-    res.json({ success: true });
-  });
-
-  // Add new building (Teacher)
-  app.post('/api/buildings', (req, res) => {
-    const { name, description, coverImage } = req.body;
-    const maxOrder = db.prepare('SELECT MAX(orderIndex) as max FROM buildings').get() as { max: number };
-    const orderIndex = (maxOrder.max || 0) + 1;
-    
-    const result = db.prepare('INSERT INTO buildings (name, description, coverImage, orderIndex) VALUES (?, ?, ?, ?)')
-      .run(name, description, coverImage, orderIndex);
-    
-    res.json({ success: true, id: result.lastInsertRowid });
-  });
-
-  // Update building (Teacher)
-  app.put('/api/buildings/:id', (req, res) => {
-    const { id } = req.params;
-    const { name, description, coverImage } = req.body;
-    db.prepare('UPDATE buildings SET name = ?, description = ?, coverImage = ? WHERE id = ?')
-      .run(name, description, coverImage, id);
-    res.json({ success: true });
-  });
-
-  // Delete building (Teacher)
-  app.delete('/api/buildings/:id', (req, res) => {
-    const { id } = req.params;
-    // Optional: Check if there are projects in this building before deleting, or delete them too.
-    // For now, let's just delete the building.
-    db.prepare('DELETE FROM buildings WHERE id = ?').run(id);
-    res.json({ success: true });
-  });
-
-  // Get all projects (Teacher)
-  app.get('/api/projects', (req, res) => {
-    const projects = db.prepare('SELECT p.*, b.name as buildingName FROM projects p LEFT JOIN buildings b ON p.buildingId = b.id ORDER BY p.buildingId ASC, p.orderIndex ASC').all();
-    res.json(projects);
-  });
-
   // Get student projects with progress for a specific building
-  app.get('/api/student/buildings/:buildingId/projects/:userId', (req, res) => {
+  app.get('/api/student/buildings/:buildingId/projects/:userId', authMiddleware, studentSelfOnly, (req: AuthRequest, res: Response) => {
     const { buildingId, userId } = req.params;
     const projects = db.prepare('SELECT * FROM projects WHERE buildingId = ? ORDER BY orderIndex ASC').all(buildingId) as any[];
     const progress = db.prepare('SELECT * FROM user_progress WHERE userId = ?').all(userId) as any[];
 
-    let previousCompleted = true; // First project is always eligible if teacher unlocked it
+    let previousCompleted = true;
 
     const result = projects.map((p) => {
       const prog = progress.find(pr => pr.projectId === p.id);
@@ -193,85 +175,34 @@ async function startServer() {
         state = 'unlocked';
       }
 
-      // Update previousCompleted for the next iteration
-      if (state === 'completed') {
-        previousCompleted = true;
-      } else {
-        previousCompleted = false;
-      }
+      previousCompleted = state === 'completed';
 
-      return {
-        ...p,
-        state
-      };
+      return { ...p, state };
     });
 
     res.json(result);
   });
 
-  // Update project state (Teacher)
-  app.put('/api/projects/:id/lock', (req, res) => {
-    const { id } = req.params;
-    const { isLocked } = req.body;
-    db.prepare('UPDATE projects SET isLocked = ? WHERE id = ?').run(isLocked ? 1 : 0, id);
-    res.json({ success: true });
-  });
-
-  // Add new project (Teacher)
-  app.post('/api/projects', (req, res) => {
-    const { buildingId, title, description, content, scratchFileUrl, scratchProjectId, coverImage, quizzes } = req.body;
-    const maxOrder = db.prepare('SELECT MAX(orderIndex) as max FROM projects WHERE buildingId = ?').get(buildingId) as { max: number };
-    const orderIndex = (maxOrder.max || 0) + 1;
-    
-    const quizzesJson = JSON.stringify(quizzes || []);
-
-    const result = db.prepare('INSERT INTO projects (buildingId, title, description, content, scratchFileUrl, scratchProjectId, coverImage, isLocked, orderIndex, quizzes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(buildingId, title, description, content, scratchFileUrl, scratchProjectId, coverImage, 1, orderIndex, quizzesJson);
-    
-    res.json({ success: true, id: result.lastInsertRowid });
-  });
-
-  // Update project (Teacher)
-  app.put('/api/projects/:id', (req, res) => {
-    const { id } = req.params;
-    const { buildingId, title, description, content, scratchFileUrl, scratchProjectId, coverImage, quizzes } = req.body;
-    
-    const quizzesJson = JSON.stringify(quizzes || []);
-
-    db.prepare('UPDATE projects SET buildingId = ?, title = ?, description = ?, content = ?, scratchFileUrl = ?, scratchProjectId = ?, coverImage = ?, quizzes = ? WHERE id = ?')
-      .run(buildingId, title, description, content, scratchFileUrl, scratchProjectId, coverImage, quizzesJson, id);
-    
-    res.json({ success: true });
-  });
-
-  // Delete project (Teacher)
-  app.delete('/api/projects/:id', (req, res) => {
-    const { id } = req.params;
-    db.prepare('DELETE FROM user_progress WHERE projectId = ?').run(id);
-    db.prepare('DELETE FROM projects WHERE id = ?').run(id);
-    res.json({ success: true });
-  });
-
   // Start learning a project (Student)
-  app.post('/api/student/projects/:projectId/start', (req, res) => {
+  app.post('/api/student/projects/:projectId/start', authMiddleware, studentSelfOnly, (req: AuthRequest, res: Response) => {
     const { projectId } = req.params;
     const { userId } = req.body;
-    
-    const existing = db.prepare('SELECT * FROM user_progress WHERE userId = ? AND projectId = ?').get(userId, projectId);
+
+    const existing = db.prepare('SELECT * FROM user_progress WHERE userId = ? AND projectId = ?').get(userId, projectId) as any;
     if (!existing) {
       db.prepare('INSERT INTO user_progress (userId, projectId, state) VALUES (?, ?, ?)').run(userId, projectId, 'in-progress');
-    } else if ((existing as any).state === 'unlocked') {
+    } else if (existing.state === 'unlocked') {
       db.prepare('UPDATE user_progress SET state = ? WHERE userId = ? AND projectId = ?').run('in-progress', userId, projectId);
     }
     res.json({ success: true });
   });
 
   // Complete a project (Student)
-  app.post('/api/student/projects/:projectId/complete', (req, res) => {
+  app.post('/api/student/projects/:projectId/complete', authMiddleware, studentSelfOnly, (req: AuthRequest, res: Response) => {
     const { projectId } = req.params;
     const { userId } = req.body;
-    
-    const existing = db.prepare('SELECT * FROM user_progress WHERE userId = ? AND projectId = ?').get(userId, projectId);
+
+    const existing = db.prepare('SELECT * FROM user_progress WHERE userId = ? AND projectId = ?').get(userId, projectId) as any;
     if (existing) {
       db.prepare('UPDATE user_progress SET state = ? WHERE userId = ? AND projectId = ?').run('completed', userId, projectId);
     } else {
@@ -281,7 +212,7 @@ async function startServer() {
   });
 
   // Get single project
-  app.get('/api/projects/:id', (req, res) => {
+  app.get('/api/projects/:id', authMiddleware, (req: AuthRequest, res: Response) => {
     const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
     if (project) {
       res.json(project);
@@ -291,13 +222,224 @@ async function startServer() {
   });
 
   // Get single project progress
-  app.get('/api/student/projects/:projectId/progress/:userId', (req, res) => {
+  app.get('/api/student/projects/:projectId/progress/:userId', authMiddleware, studentSelfOnly, (req: AuthRequest, res: Response) => {
     const { projectId, userId } = req.params;
     const prog = db.prepare('SELECT * FROM user_progress WHERE userId = ? AND projectId = ?').get(userId, projectId);
     res.json(prog || { state: 'locked' });
   });
 
-  // Vite middleware for development
+  // ─── Teacher Routes (authenticated + teacher only) ───────────────
+
+  // Get all students
+  app.get('/api/users', authMiddleware, teacherOnly, (_req: AuthRequest, res: Response) => {
+    const users = db.prepare('SELECT id, username, role FROM users WHERE role = ?').all('student');
+    res.json(users);
+  });
+
+  // Add new student
+  app.post('/api/users', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { username, password } = req.body;
+    try {
+      const hashedPassword = bcrypt.hashSync(password, 10);
+      const result = db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)')
+        .run(username, hashedPassword, 'student');
+      res.json({ success: true, id: result.lastInsertRowid });
+    } catch (error: any) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  });
+
+  // Update student
+  app.put('/api/users/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    const { username, password } = req.body;
+    try {
+      const hashedPassword = bcrypt.hashSync(password, 10);
+      db.prepare('UPDATE users SET username = ?, password = ? WHERE id = ? AND role = ?')
+        .run(username, hashedPassword, id, 'student');
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  });
+
+  // Delete student
+  app.delete('/api/users/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    db.prepare('DELETE FROM users WHERE id = ? AND role = ?').run(id, 'student');
+    res.json({ success: true });
+  });
+
+  // Get student progress (Teacher)
+  app.get('/api/users/:id/progress', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    const progress = db.prepare(`
+      SELECT p.id as projectId, p.title, p.buildingId, b.name as buildingName, up.state 
+      FROM projects p 
+      LEFT JOIN buildings b ON p.buildingId = b.id
+      LEFT JOIN user_progress up ON p.id = up.projectId AND up.userId = ?
+      ORDER BY p.buildingId ASC, p.orderIndex ASC
+    `).all(id);
+    res.json(progress);
+  });
+
+  // Update student progress (Teacher)
+  app.put('/api/users/:id/progress/:projectId', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id, projectId } = req.params;
+    const { state } = req.body;
+
+    if (state === 'locked') {
+      db.prepare('DELETE FROM user_progress WHERE userId = ? AND projectId = ?').run(id, projectId);
+    } else {
+      const existing = db.prepare('SELECT * FROM user_progress WHERE userId = ? AND projectId = ?').get(id, projectId);
+      if (existing) {
+        db.prepare('UPDATE user_progress SET state = ? WHERE userId = ? AND projectId = ?').run(state, id, projectId);
+      } else {
+        db.prepare('INSERT INTO user_progress (userId, projectId, state) VALUES (?, ?, ?)').run(id, projectId, state);
+      }
+    }
+    res.json({ success: true });
+  });
+
+  // ─── Buildings CRUD (Teacher) ────────────────────────────────────
+
+  // Get all buildings
+  app.get('/api/buildings', authMiddleware, (req: AuthRequest, res: Response) => {
+    const buildings = db.prepare('SELECT * FROM buildings ORDER BY orderIndex ASC').all();
+    res.json(buildings);
+  });
+
+  // Get single building
+  app.get('/api/buildings/:id', authMiddleware, (req: AuthRequest, res: Response) => {
+    const building = db.prepare('SELECT * FROM buildings WHERE id = ?').get(req.params.id);
+    if (building) {
+      res.json(building);
+    } else {
+      res.status(404).json({ error: 'Building not found' });
+    }
+  });
+
+  // Get all buildings with visibility status for a student (Teacher)
+  app.get('/api/users/:id/buildings', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    const buildings = db.prepare(`
+      SELECT b.*, COALESCE(ubv.isVisible, 1) as isVisible
+      FROM buildings b
+      LEFT JOIN user_building_visibility ubv ON b.id = ubv.buildingId AND ubv.userId = ?
+      ORDER BY b.orderIndex ASC
+    `).all(id);
+    res.json(buildings);
+  });
+
+  // Update building visibility for a student (Teacher)
+  app.put('/api/users/:id/buildings/:buildingId', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id, buildingId } = req.params;
+    const { isVisible } = req.body;
+
+    const existing = db.prepare('SELECT * FROM user_building_visibility WHERE userId = ? AND buildingId = ?').get(id, buildingId);
+    if (existing) {
+      db.prepare('UPDATE user_building_visibility SET isVisible = ? WHERE userId = ? AND buildingId = ?').run(isVisible ? 1 : 0, id, buildingId);
+    } else {
+      db.prepare('INSERT INTO user_building_visibility (userId, buildingId, isVisible) VALUES (?, ?, ?)').run(id, buildingId, isVisible ? 1 : 0);
+    }
+    res.json({ success: true });
+  });
+
+  // Add new building
+  app.post('/api/buildings', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { name, description, coverImage } = req.body;
+    const maxOrder = db.prepare('SELECT MAX(orderIndex) as max FROM buildings').get() as { max: number };
+    const orderIndex = (maxOrder.max || 0) + 1;
+
+    const result = db.prepare('INSERT INTO buildings (name, description, coverImage, orderIndex) VALUES (?, ?, ?, ?)')
+      .run(name, description, coverImage, orderIndex);
+
+    res.json({ success: true, id: result.lastInsertRowid });
+  });
+
+  // Update building
+  app.put('/api/buildings/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    const { name, description, coverImage } = req.body;
+    db.prepare('UPDATE buildings SET name = ?, description = ?, coverImage = ? WHERE id = ?')
+      .run(name, description, coverImage, id);
+    res.json({ success: true });
+  });
+
+  // Delete building (cascade delete handled by FK constraints)
+  app.delete('/api/buildings/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    // Cascade delete: projects and their progress are automatically deleted by FK ON DELETE CASCADE
+    // Also clean up building visibility records
+    db.prepare('DELETE FROM user_building_visibility WHERE buildingId = ?').run(id);
+    db.prepare('DELETE FROM buildings WHERE id = ?').run(id);
+    res.json({ success: true });
+  });
+
+  // ─── Projects CRUD (Teacher) ─────────────────────────────────────
+
+  // Get all projects
+  app.get('/api/projects', authMiddleware, (req: AuthRequest, res: Response) => {
+    const projects = db.prepare('SELECT p.*, b.name as buildingName FROM projects p LEFT JOIN buildings b ON p.buildingId = b.id ORDER BY p.buildingId ASC, p.orderIndex ASC').all();
+    res.json(projects);
+  });
+
+  // Update project state (lock/unlock)
+  app.put('/api/projects/:id/lock', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    const { isLocked } = req.body;
+    db.prepare('UPDATE projects SET isLocked = ? WHERE id = ?').run(isLocked ? 1 : 0, id);
+    res.json({ success: true });
+  });
+
+  // Add new project
+  app.post('/api/projects', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { buildingId, title, description, content, scratchFileUrl, scratchProjectId, coverImage, quizzes } = req.body;
+    const maxOrder = db.prepare('SELECT MAX(orderIndex) as max FROM projects WHERE buildingId = ?').get(buildingId) as { max: number };
+    const orderIndex = (maxOrder.max || 0) + 1;
+
+    // Sanitize HTML content
+    const sanitizedContent = sanitizeHtml(content || '');
+    const sanitizedQuizzes = (quizzes || []).map((q: any) => ({
+      ...q,
+      question: sanitizeHtml(q.question || ''),
+    }));
+    const quizzesJson = JSON.stringify(sanitizedQuizzes);
+
+    const result = db.prepare('INSERT INTO projects (buildingId, title, description, content, scratchFileUrl, scratchProjectId, coverImage, isLocked, orderIndex, quizzes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(buildingId, title, description, sanitizedContent, scratchFileUrl, scratchProjectId, coverImage, 1, orderIndex, quizzesJson);
+
+    res.json({ success: true, id: result.lastInsertRowid });
+  });
+
+  // Update project
+  app.put('/api/projects/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    const { buildingId, title, description, content, scratchFileUrl, scratchProjectId, coverImage, quizzes } = req.body;
+
+    // Sanitize HTML content
+    const sanitizedContent = sanitizeHtml(content || '');
+    const sanitizedQuizzes = (quizzes || []).map((q: any) => ({
+      ...q,
+      question: sanitizeHtml(q.question || ''),
+    }));
+    const quizzesJson = JSON.stringify(sanitizedQuizzes);
+
+    db.prepare('UPDATE projects SET buildingId = ?, title = ?, description = ?, content = ?, scratchFileUrl = ?, scratchProjectId = ?, coverImage = ?, quizzes = ? WHERE id = ?')
+      .run(buildingId, title, description, sanitizedContent, scratchFileUrl, scratchProjectId, coverImage, quizzesJson, id);
+
+    res.json({ success: true });
+  });
+
+  // Delete project
+  app.delete('/api/projects/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    // user_progress automatically deleted by FK ON DELETE CASCADE
+    db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+    res.json({ success: true });
+  });
+
+  // ─── Vite middleware for development ─────────────────────────────
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -307,6 +449,12 @@ async function startServer() {
   } else {
     app.use(express.static('dist'));
   }
+
+  // Global Error Handler
+  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+    console.error('Unhandled Server Error:', err);
+    res.status(500).json({ success: false, message: 'Internal Server Error', error: err.message });
+  });
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);

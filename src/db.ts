@@ -1,8 +1,15 @@
 import Database from 'better-sqlite3';
+import bcrypt from 'bcryptjs';
 import path from 'path';
 
 const dbPath = path.resolve(process.cwd(), 'database.sqlite');
 const db = new Database(dbPath);
+
+// Enable WAL mode for better concurrent read performance
+db.pragma('journal_mode = WAL');
+
+// Enable foreign keys
+db.pragma('foreign_keys = ON');
 
 // Initialize tables
 db.exec(`
@@ -33,7 +40,7 @@ db.exec(`
     isLocked BOOLEAN DEFAULT 1,
     orderIndex INTEGER NOT NULL,
     quizzes TEXT DEFAULT '[]',
-    FOREIGN KEY (buildingId) REFERENCES buildings(id)
+    FOREIGN KEY (buildingId) REFERENCES buildings(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS user_progress (
@@ -41,8 +48,8 @@ db.exec(`
     projectId INTEGER NOT NULL,
     state TEXT NOT NULL DEFAULT 'locked',
     PRIMARY KEY (userId, projectId),
-    FOREIGN KEY (userId) REFERENCES users(id),
-    FOREIGN KEY (projectId) REFERENCES projects(id)
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (projectId) REFERENCES projects(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS user_building_visibility (
@@ -50,31 +57,27 @@ db.exec(`
     buildingId INTEGER NOT NULL,
     isVisible INTEGER NOT NULL DEFAULT 1,
     PRIMARY KEY (userId, buildingId),
-    FOREIGN KEY (userId) REFERENCES users(id),
-    FOREIGN KEY (buildingId) REFERENCES buildings(id)
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (buildingId) REFERENCES buildings(id) ON DELETE CASCADE
   );
 `);
 
 // Seed initial data if empty
-try {
-  db.exec('ALTER TABLE projects ADD COLUMN quizzes TEXT DEFAULT "[]"');
-} catch (e) {
-  // Column might already exist
-}
-
 const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
 if (userCount.count === 0) {
-  db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run('teacher', 'password', 'teacher');
-  db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run('student', 'password', 'student');
-  
+  const hashedPassword = bcrypt.hashSync('password', 10);
+
+  db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run('teacher', hashedPassword, 'teacher');
+  db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run('student', hashedPassword, 'student');
+
   const insertBuilding = db.prepare('INSERT INTO buildings (name, description, coverImage, orderIndex) VALUES (?, ?, ?, ?)');
-  const b1 = insertBuilding.run('Beginner Building', 'Start your Scratch journey here.', 'https://picsum.photos/seed/build1/400/300', 1);
-  const b2 = insertBuilding.run('Advanced Building', 'Master complex Scratch concepts.', 'https://picsum.photos/seed/build2/400/300', 2);
+  const b1 = insertBuilding.run('Beginner Building', 'Start your Scratch journey here.', '', 1);
+  const b2 = insertBuilding.run('Advanced Building', 'Master complex Scratch concepts.', '', 2);
 
   const insertProject = db.prepare('INSERT INTO projects (buildingId, title, description, content, scratchFileUrl, scratchProjectId, coverImage, isLocked, orderIndex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-  insertProject.run(b1.lastInsertRowid, 'Scratch Basics', 'Learn the basics of Scratch programming.', 'Welcome to Scratch! In this lesson, we will learn how to make a sprite move.', '', '31876', 'https://picsum.photos/seed/scratch1/400/300', 0, 1);
-  insertProject.run(b1.lastInsertRowid, 'Animation', 'Create your first animation.', 'Let us animate a character.', '', '10128407', 'https://picsum.photos/seed/scratch2/400/300', 0, 2);
-  insertProject.run(b2.lastInsertRowid, 'Games', 'Build a simple game.', 'Time to build a game!', '', '10128515', 'https://picsum.photos/seed/scratch3/400/300', 1, 1);
+  insertProject.run(b1.lastInsertRowid, 'Scratch Basics', 'Learn the basics of Scratch programming.', 'Welcome to Scratch! In this lesson, we will learn how to make a sprite move.', '', '31876', '', 0, 1);
+  insertProject.run(b1.lastInsertRowid, 'Animation', 'Create your first animation.', 'Let us animate a character.', '', '10128407', '', 0, 2);
+  insertProject.run(b2.lastInsertRowid, 'Games', 'Build a simple game.', 'Time to build a game!', '', '10128515', '', 1, 1);
 }
 
 export default db;

@@ -1,0 +1,16 @@
+--- Starting Malicious Tests ---
+Student A login successful (ID: 2)
+
+[Test 1] IDOR: Student A tries to view Student B's projects progress
+Status: 403
+Response: {"success":false,"message":"Forbidden: You can only access your own data"}
+
+[Test 2] IDOR: Student A tries to start a project for Student B
+Status: 403
+Response: {"success":false,"message":"Forbidden: You can only access your own data"}
+
+[Test 3] Error Handler: Triggering an error by sending invalid JSON
+Status: 500
+Response: {"success":false,"message":"Internal Server Error","error":"Unexpected end of JSON input"}
+
+--- Malicious Tests Completed ---
