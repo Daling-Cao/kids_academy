@@ -108,6 +108,13 @@ async function startServer() {
 
   app.post('/api/login', (req: Request, res: Response) => {
     const { username, password } = req.body;
+
+    // Input validation — prevent crashes from missing/non-string inputs
+    if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
+      res.status(400).json({ success: false, message: 'Invalid credentials' });
+      return;
+    }
+
     const user = db.prepare('SELECT id, username, password, role, name, avatar FROM users WHERE username = ?').get(username) as any;
 
     if (!user || !bcrypt.compareSync(password, user.password)) {
