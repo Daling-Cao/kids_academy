@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import { createServer as createViteServer } from 'vite';
 import bcrypt from 'bcryptjs';
@@ -8,8 +9,12 @@ import path from 'path';
 import fs from 'fs';
 import db from './src/db.js';
 
-// JWT secret — in production, use a strong secret from env
-const JWT_SECRET = process.env.JWT_SECRET || 'kids-academy-secret-key-change-in-production';
+// JWT secret — required in all environments
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is required. Set it in your .env file.');
+  process.exit(1);
+}
 
 // ─── Multer config for image uploads ────────────────────────────────
 const uploadsDir = path.resolve(process.cwd(), 'uploads');
@@ -91,7 +96,7 @@ function sanitizeHtml(html: string): string {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = parseInt(process.env.PORT || '3000', 10);
 
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -100,9 +105,10 @@ async function startServer() {
   app.use('/uploads', express.static(uploadsDir));
 
   // ─── Public Routes ──────────────────────────────────────────────
+
   app.post('/api/login', (req: Request, res: Response) => {
     const { username, password } = req.body;
-    const user = db.prepare('SELECT id, username, password, role FROM users WHERE username = ?').get(username) as any;
+    const user = db.prepare('SELECT id, username, password, role, name, avatar FROM users WHERE username = ?').get(username) as any;
 
     if (!user || !bcrypt.compareSync(password, user.password)) {
       res.status(401).json({ success: false, message: 'Invalid credentials' });
@@ -117,7 +123,7 @@ async function startServer() {
 
     res.json({
       success: true,
-      user: { id: user.id, username: user.username, role: user.role },
+      user: { id: user.id, username: user.username, role: user.role, name: user.name, avatar: user.avatar },
       token,
     });
   });
@@ -136,6 +142,68 @@ async function startServer() {
       const url = `/uploads/${req.file.filename}`;
       res.json({ success: true, url });
     });
+  });
+
+  // ─── Profile Update (authenticated) ──────────────────────────────
+  app.put('/api/profile', authMiddleware, (req: AuthRequest, res: Response) => {
+    const { name, avatar } = req.body;
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Not authenticated' });
+      return;
+    }
+    try {
+      db.prepare('UPDATE users SET name = ?, avatar = ? WHERE id = ?').run(name, avatar, userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  });
+
+  app.get('/api/profile', authMiddleware, (req: AuthRequest, res: Response) => {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Not authenticated' });
+      return;
+    }
+    try {
+      const user = db.prepare('SELECT id, username, role, name, avatar FROM users WHERE id = ?').get(userId) as any;
+      if (user) {
+        res.json({ success: true, user });
+      } else {
+        res.status(404).json({ success: false, message: 'User not found' });
+      }
+    } catch (error: any) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  });
+
+  // ─── Password Change (self-service, authenticated) ───────────────
+  app.put('/api/profile/password', authMiddleware, (req: AuthRequest, res: Response) => {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Not authenticated' });
+      return;
+    }
+    if (!newPassword || newPassword.length < 4) {
+      res.status(400).json({ success: false, message: 'New password must be at least 4 characters.' });
+      return;
+    }
+
+    const user = db.prepare('SELECT password FROM users WHERE id = ?').get(userId) as any;
+    if (!user || !bcrypt.compareSync(currentPassword, user.password)) {
+      res.status(400).json({ success: false, message: 'Current password is incorrect.' });
+      return;
+    }
+
+    try {
+      const hashedPassword = bcrypt.hashSync(newPassword, 10);
+      db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ success: false, message: error.message });
+    }
   });
 
   // ─── Student Routes (authenticated) ──────────────────────────────
@@ -232,7 +300,7 @@ async function startServer() {
 
   // Get all students
   app.get('/api/users', authMiddleware, teacherOnly, (_req: AuthRequest, res: Response) => {
-    const users = db.prepare('SELECT id, username, role FROM users WHERE role = ?').all('student');
+    const users = db.prepare('SELECT id, username, role, name, avatar FROM users WHERE role = ?').all('student');
     res.json(users);
   });
 
@@ -254,9 +322,18 @@ async function startServer() {
     const { id } = req.params;
     const { username, password } = req.body;
     try {
-      const hashedPassword = bcrypt.hashSync(password, 10);
-      db.prepare('UPDATE users SET username = ?, password = ? WHERE id = ? AND role = ?')
-        .run(username, hashedPassword, id, 'student');
+      if (username && password) {
+        const hashedPassword = bcrypt.hashSync(password, 10);
+        db.prepare('UPDATE users SET username = ?, password = ? WHERE id = ? AND role = ?')
+          .run(username, hashedPassword, id, 'student');
+      } else if (password) {
+        const hashedPassword = bcrypt.hashSync(password, 10);
+        db.prepare('UPDATE users SET password = ? WHERE id = ? AND role = ?')
+          .run(hashedPassword, id, 'student');
+      } else if (username) {
+        db.prepare('UPDATE users SET username = ? WHERE id = ? AND role = ?')
+          .run(username, id, 'student');
+      }
       res.json({ success: true });
     } catch (error: any) {
       res.status(400).json({ success: false, message: error.message });
@@ -447,7 +524,11 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static('dist'));
+    app.use(express.static(path.resolve('dist')));
+    // SPA fallback: serve index.html for all non-API routes (React Router)
+    app.get('*', (_req: Request, res: Response) => {
+      res.sendFile(path.resolve('dist', 'index.html'));
+    });
   }
 
   // Global Error Handler

@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
+import ProfileSettingsModal from './components/ProfileSettingsModal';
 import Login from './pages/Login';
 import StudentDashboard from './pages/StudentDashboard';
 import BuildingView from './pages/BuildingView';
@@ -25,6 +26,7 @@ export function authFetch(url: string, options: RequestInit = {}): Promise<Respo
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [showProfile, setShowProfile] = useState(false);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -55,15 +57,41 @@ export default function App() {
               {user.role === 'teacher' ? 'Teacher Portal' : 'Scratch Academy'}
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-orange-700 font-medium">Hello, {user.username}</span>
+              <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setShowProfile(true)}>
+                {user.avatar ? (
+                  <img src={user.avatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-orange-400 flex items-center justify-center text-white font-bold text-lg shadow-sm border-2 border-white">
+                    {(user.name || user.username)[0].toUpperCase()}
+                  </div>
+                )}
+                <span className="text-orange-800 font-medium hidden sm:block">Hello, {user.name || user.username}</span>
+              </div>
+              <button
+                onClick={() => setShowProfile(true)}
+                className="px-4 py-2 bg-orange-100 text-orange-700 rounded-full shadow-sm hover:bg-orange-200 transition-colors font-medium text-sm sm:text-base hidden md:block"
+              >
+                Profile
+              </button>
               <button
                 onClick={handleLogout}
-                className="px-4 py-2 bg-white text-orange-600 rounded-full shadow-sm hover:bg-orange-50 transition-colors font-medium"
+                className="px-4 py-2 bg-white text-orange-600 rounded-full shadow-sm hover:bg-orange-50 transition-colors font-medium text-sm sm:text-base"
               >
                 Logout
               </button>
             </div>
           </nav>
+        )}
+
+        {showProfile && user && (
+          <ProfileSettingsModal
+            user={user}
+            onClose={() => setShowProfile(false)}
+            onUpdate={(u) => {
+              handleLogin(u, localStorage.getItem('token') || '');
+              setShowProfile(false);
+            }}
+          />
         )}
 
         <main className="p-4 md:p-8">

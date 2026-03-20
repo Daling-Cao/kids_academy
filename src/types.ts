@@ -4,6 +4,8 @@ export interface User {
     id: number;
     username: string;
     role: 'teacher' | 'student';
+    name?: string;
+    avatar?: string;
 }
 
 export interface AuthUser extends User {

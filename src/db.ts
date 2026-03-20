@@ -17,7 +17,9 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'student'
+    role TEXT NOT NULL DEFAULT 'student',
+    name TEXT,
+    avatar TEXT
   );
 
   CREATE TABLE IF NOT EXISTS buildings (
@@ -62,13 +64,26 @@ db.exec(`
   );
 `);
 
+// Migrate existing databases: Add name and avatar columns if they don't exist
+const tableInfo = db.pragma('table_info(users)') as any[];
+const hasNameColumn = tableInfo.some(col => col.name === 'name');
+if (!hasNameColumn) {
+  db.exec('ALTER TABLE users ADD COLUMN name TEXT;');
+}
+const hasAvatarColumn = tableInfo.some(col => col.name === 'avatar');
+if (!hasAvatarColumn) {
+  db.exec('ALTER TABLE users ADD COLUMN avatar TEXT;');
+}
+
 // Seed initial data if empty
+const adminUsername = process.env.ADMIN_USERNAME || 'teacher';
+const adminPassword = process.env.ADMIN_PASSWORD || 'password';
+
 const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
 if (userCount.count === 0) {
-  const hashedPassword = bcrypt.hashSync('password', 10);
+  const hashedPassword = bcrypt.hashSync(adminPassword, 10);
 
-  db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run('teacher', hashedPassword, 'teacher');
-  db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run('student', hashedPassword, 'student');
+  db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run(adminUsername, hashedPassword, 'teacher');
 
   const insertBuilding = db.prepare('INSERT INTO buildings (name, description, coverImage, orderIndex) VALUES (?, ?, ?, ?)');
   const b1 = insertBuilding.run('Beginner Building', 'Start your Scratch journey here.', '', 1);
@@ -78,6 +93,13 @@ if (userCount.count === 0) {
   insertProject.run(b1.lastInsertRowid, 'Scratch Basics', 'Learn the basics of Scratch programming.', 'Welcome to Scratch! In this lesson, we will learn how to make a sprite move.', '', '31876', '', 0, 1);
   insertProject.run(b1.lastInsertRowid, 'Animation', 'Create your first animation.', 'Let us animate a character.', '', '10128407', '', 0, 2);
   insertProject.run(b2.lastInsertRowid, 'Games', 'Build a simple game.', 'Time to build a game!', '', '10128515', '', 1, 1);
+} else {
+  // Sync teacher credentials from env on every restart
+  const teacher = db.prepare('SELECT id FROM users WHERE username = ? AND role = ?').get(adminUsername, 'teacher') as any;
+  if (teacher) {
+    const hashedPassword = bcrypt.hashSync(adminPassword, 10);
+    db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, teacher.id);
+  }
 }
 
 export default db;

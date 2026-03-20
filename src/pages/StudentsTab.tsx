@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Save, X, Users, Lock, Unlock, CheckCircle, PlayCircle, Eye, EyeOff, Building2, BookOpen } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, Users, Lock, Unlock, CheckCircle, PlayCircle, Eye, EyeOff, Building2, BookOpen, KeyRound } from 'lucide-react';
 import { authFetch } from '../App';
 import type { User, Building, StudentProgress, BuildingWithVisibility } from '../types';
 
@@ -85,6 +85,29 @@ export default function StudentsTab() {
         fetchStudentBuildings(studentId);
     };
 
+    const handleResetPassword = async (studentId: number, studentName: string) => {
+        const newPassword = prompt(`Set a new password for ${studentName}:`);
+        if (!newPassword) return;
+        if (newPassword.length < 4) {
+            alert('Password must be at least 4 characters.');
+            return;
+        }
+        try {
+            const res = await authFetch(`/api/users/${studentId}`, {
+                method: 'PUT',
+                body: JSON.stringify({ password: newPassword }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('Password has been reset successfully.');
+            } else {
+                alert(data.message || 'Failed to reset password.');
+            }
+        } catch {
+            alert('An error occurred while resetting the password.');
+        }
+    };
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Students List */}
@@ -163,8 +186,27 @@ export default function StudentsTab() {
                                 </form>
                             ) : (
                                 <>
-                                    <div className="font-bold text-stone-700">{student.username}</div>
+                                    <div className="flex items-center gap-3">
+                                        {student.avatar ? (
+                                            <img src={student.avatar} alt="Avatar" className="w-8 h-8 rounded-full object-cover border border-orange-200" />
+                                        ) : (
+                                            <div className="w-8 h-8 rounded-full bg-orange-300 flex items-center justify-center text-white font-bold text-sm">
+                                                {(student.name || student.username)[0].toUpperCase()}
+                                            </div>
+                                        )}
+                                        <div>
+                                            <div className="font-bold text-stone-700">{student.name || student.username}</div>
+                                            {student.name && <div className="text-xs text-stone-500">@{student.username}</div>}
+                                        </div>
+                                    </div>
                                     <div className="flex gap-1">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleResetPassword(student.id, student.name || student.username); }}
+                                            className="p-1.5 text-orange-600 hover:bg-orange-100 rounded-lg"
+                                            title="Reset Password"
+                                        >
+                                            <KeyRound size={16} />
+                                        </button>
                                         <button
                                             onClick={(e) => { e.stopPropagation(); setEditingStudent({ ...student, password: '' }); }}
                                             className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg"
@@ -194,7 +236,7 @@ export default function StudentsTab() {
                     <>
                         <div className="p-6 border-b-2 border-orange-100 bg-orange-50">
                             <h2 className="text-2xl font-bold text-orange-800">
-                                Manage: {selectedStudent.username}
+                                Manage: {selectedStudent.name || selectedStudent.username}
                             </h2>
                             <p className="text-stone-600 mt-1">Manage building visibility and project progress.</p>
                         </div>

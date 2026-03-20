@@ -51,7 +51,7 @@ export default function Login({ onLogin }: LoginProps) {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full px-4 py-3 rounded-xl border-2 border-orange-100 focus:border-orange-400 focus:outline-none transition-colors"
-              placeholder="e.g. student"
+              placeholder="Enter your username"
               required
             />
           </div>
@@ -62,7 +62,7 @@ export default function Login({ onLogin }: LoginProps) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-3 rounded-xl border-2 border-orange-100 focus:border-orange-400 focus:outline-none transition-colors"
-              placeholder="e.g. password"
+              placeholder="Enter your password"
               required
             />
           </div>
@@ -74,12 +74,6 @@ export default function Login({ onLogin }: LoginProps) {
             {loading ? 'Logging in...' : "Let's Go!"}
           </button>
         </form>
-
-        <div className="mt-6 text-center text-xs text-stone-400">
-          <p>Demo accounts:</p>
-          <p>Teacher: teacher / password</p>
-          <p>Student: student / password</p>
-        </div>
       </div>
     </div>
   );
