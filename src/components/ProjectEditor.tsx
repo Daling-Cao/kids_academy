@@ -40,11 +40,11 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
         if ((project.quizzes || []).length >= 3) return;
         setProject({
             ...project,
-            quizzes: [...(project.quizzes || []), { question: '', options: ['', '', '', ''], correctOptionIndex: 0 }]
+            quizzes: [...(project.quizzes || []), { question: '', options: ['', '', '', ''], correctOptionIndex: 0, correctOptionIndices: [0], isMultiSelect: false }]
         });
     };
 
-    const handleUpdateQuiz = (index: number, field: string, value: string | number) => {
+    const handleUpdateQuiz = (index: number, field: string, value: string | number | number[]) => {
         const newQuizzes = [...(project.quizzes || [])];
         newQuizzes[index] = { ...newQuizzes[index], [field]: value };
         setProject({ ...project, quizzes: newQuizzes });
@@ -167,7 +167,28 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                                 >
                                     <Trash2 size={18} />
                                 </button>
-                                <h4 className="font-bold text-stone-700 mb-2">Question {qIndex + 1}</h4>
+                                <div className="flex items-center justify-between mt-4 mb-2">
+                                    <h4 className="font-bold text-stone-700">Question {qIndex + 1}</h4>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={quiz.isMultiSelect}
+                                            onChange={(e) => {
+                                                const isMulti = e.target.checked;
+                                                const newQuizzes = [...(project.quizzes || [])];
+                                                newQuizzes[qIndex] = { 
+                                                    ...newQuizzes[qIndex], 
+                                                    isMultiSelect: isMulti,
+                                                    // Initialize indices if switching to multi
+                                                    correctOptionIndices: newQuizzes[qIndex].correctOptionIndices || [newQuizzes[qIndex].correctOptionIndex || 0]
+                                                };
+                                                setProject({ ...project, quizzes: newQuizzes });
+                                            }}
+                                            className="w-4 h-4 text-orange-500 rounded border-orange-200 focus:ring-orange-500"
+                                        />
+                                        <span className="text-sm font-bold text-stone-600">Multiple Answers</span>
+                                    </label>
+                                </div>
                                 <div className="mb-12">
                                     <div className="bg-white rounded-xl border border-orange-200 focus-within:border-orange-400 overflow-hidden">
                                         <ReactQuill
@@ -182,13 +203,36 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
                                     {quiz.options.map((opt: string, oIndex: number) => (
                                         <div key={oIndex} className="flex items-center gap-2">
-                                            <input
-                                                type="radio"
-                                                name={`quiz-${qIndex}-correct`}
-                                                checked={quiz.correctOptionIndex === oIndex}
-                                                onChange={() => handleUpdateQuiz(qIndex, 'correctOptionIndex', oIndex)}
-                                                className="w-4 h-4 text-orange-500 focus:ring-orange-500"
-                                            />
+                                            {quiz.isMultiSelect ? (
+                                                <input
+                                                    type="checkbox"
+                                                    checked={(quiz.correctOptionIndices || [quiz.correctOptionIndex || 0]).includes(oIndex)}
+                                                    onChange={(e) => {
+                                                        const checked = e.target.checked;
+                                                        const currentIndices = quiz.correctOptionIndices || [quiz.correctOptionIndex || 0];
+                                                        let nextIndices;
+                                                        if (checked) {
+                                                            nextIndices = [...currentIndices, oIndex];
+                                                        } else {
+                                                            nextIndices = currentIndices.filter(i => i !== oIndex);
+                                                            if (nextIndices.length === 0) nextIndices = [oIndex]; // Keep at least one
+                                                        }
+                                                        handleUpdateQuiz(qIndex, 'correctOptionIndices', nextIndices);
+                                                    }}
+                                                    className="w-4 h-4 text-orange-500 rounded border-orange-200 focus:ring-orange-500"
+                                                />
+                                            ) : (
+                                                <input
+                                                    type="radio"
+                                                    name={`quiz-${qIndex}-correct`}
+                                                    checked={(quiz.correctOptionIndex ?? (quiz.correctOptionIndices?.[0] ?? 0)) === oIndex}
+                                                    onChange={() => {
+                                                        handleUpdateQuiz(qIndex, 'correctOptionIndex', oIndex);
+                                                        handleUpdateQuiz(qIndex, 'correctOptionIndices', [oIndex]);
+                                                    }}
+                                                    className="w-4 h-4 text-orange-500 focus:ring-orange-500"
+                                                />
+                                            )}
                                             <input
                                                 type="text"
                                                 value={opt}

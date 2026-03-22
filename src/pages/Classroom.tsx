@@ -13,7 +13,7 @@ export default function Classroom({ user }: { user: User }) {
   const [project, setProject] = useState<Project | null>(null);
   const [completed, setCompleted] = useState(false);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
-  const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [answers, setAnswers] = useState<Record<number, number | number[]>>({});
   const [showResults, setShowResults] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -75,12 +75,40 @@ export default function Classroom({ user }: { user: User }) {
 
   const handleAnswerChange = (quizIndex: number, optionIndex: number) => {
     if (completed) return;
-    setAnswers(prev => ({ ...prev, [quizIndex]: optionIndex }));
+    const isMulti = quizzes[quizIndex]?.isMultiSelect;
+    
+    setAnswers(prev => {
+      if (isMulti) {
+        const current = (prev[quizIndex] as number[]) || [];
+        const next = current.includes(optionIndex)
+          ? current.filter(i => i !== optionIndex)
+          : [...current, optionIndex];
+        return { ...prev, [quizIndex]: next };
+      } else {
+        return { ...prev, [quizIndex]: optionIndex };
+      }
+    });
     setShowResults(false);
   };
 
-  const allAnswered = quizzes.length > 0 && Object.keys(answers).length === quizzes.length;
-  const allCorrect = quizzes.length === 0 || (allAnswered && quizzes.every((q, i) => answers[i] === q.correctOptionIndex));
+  const allAnswered = quizzes.length > 0 && quizzes.every((_, i) => {
+    const ans = answers[i];
+    if (ans === undefined) return false;
+    if (Array.isArray(ans)) return ans.length > 0;
+    return true;
+  });
+  
+  const allCorrect = quizzes.length === 0 || (allAnswered && quizzes.every((q, i) => {
+    const ans = answers[i];
+    const correctIndices = q.correctOptionIndices || [q.correctOptionIndex ?? 0];
+    
+    if (Array.isArray(ans)) {
+      if (ans.length !== correctIndices.length) return false;
+      return ans.every(idx => correctIndices.includes(idx));
+    } else {
+      return correctIndices.length === 1 && correctIndices[0] === ans;
+    }
+  }));
 
   const handleCheckAnswers = () => {
     setShowResults(true);
@@ -197,8 +225,10 @@ export default function Classroom({ user }: { user: User }) {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {quiz.options.map((opt: string, oIndex: number) => {
-                      const isSelected = answers[qIndex] === oIndex;
-                      const isCorrect = quiz.correctOptionIndex === oIndex;
+                      const ans = answers[qIndex];
+                      const isSelected = Array.isArray(ans) ? ans.includes(oIndex) : ans === oIndex;
+                      const correctIndices = quiz.correctOptionIndices || [quiz.correctOptionIndex ?? 0];
+                      const isCorrect = correctIndices.includes(oIndex);
                       const showCorrectness = showResults || completed;
 
                       let btnClass = "text-left px-6 py-4 rounded-xl border-2 transition-all ";
@@ -225,11 +255,18 @@ export default function Classroom({ user }: { user: User }) {
                           disabled={completed}
                           className={btnClass}
                         >
-                          <div className="flex items-center justify-between">
-                            <span>{opt}</span>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                                isSelected ? 'bg-orange-500 border-orange-500' : 'bg-white border-stone-300'
+                              }`}>
+                                {isSelected && (
+                                  <div className={quiz.isMultiSelect ? "w-2.5 h-2.5 bg-white rounded-sm" : "w-2.5 h-2.5 bg-white rounded-full"} />
+                                )}
+                              </div>
+                              <span>{opt}</span>
+                            </div>
                             {showCorrectness && isCorrect && <CheckCircle2 className="text-green-500" size={20} />}
                             {showCorrectness && isSelected && !isCorrect && <XCircle className="text-red-500" size={20} />}
-                          </div>
                         </button>
                       );
                     })}
