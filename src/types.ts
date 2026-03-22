@@ -62,3 +62,18 @@ export interface StudentProgress {
     buildingName: string;
     state: string | null;
 }
+
+export interface Rank {
+    id: number;
+    name: string;
+    icon: string;
+    threshold: number;
+    orderIndex: number;
+}
+
+export interface StudentCoinInfo {
+    coins: number;
+    rank: Rank | null;
+    nextRank: Rank | null;
+    progress: number;
+}

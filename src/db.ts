@@ -62,6 +62,34 @@ db.exec(`
     FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (buildingId) REFERENCES buildings(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fromUserId INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    isRead INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (fromUserId) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS ranks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    icon TEXT DEFAULT '⭐',
+    threshold INTEGER NOT NULL DEFAULT 0,
+    orderIndex INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS coin_transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    refType TEXT,
+    refId TEXT,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+  );
 `);
 
 // Migrate existing databases: Add name and avatar columns if they don't exist
@@ -73,6 +101,22 @@ if (!hasNameColumn) {
 const hasAvatarColumn = tableInfo.some(col => col.name === 'avatar');
 if (!hasAvatarColumn) {
   db.exec('ALTER TABLE users ADD COLUMN avatar TEXT;');
+}
+
+// Migrate messages table: add reply columns if they don't exist
+const messagesInfo = db.pragma('table_info(messages)') as any[];
+if (messagesInfo.length > 0) {
+  const hasReplyColumn = messagesInfo.some(col => col.name === 'reply');
+  if (!hasReplyColumn) {
+    db.exec('ALTER TABLE messages ADD COLUMN reply TEXT;');
+    db.exec('ALTER TABLE messages ADD COLUMN repliedAt TEXT;');
+  }
+}
+
+// Migrate users table: add coins column if it doesn't exist
+const hasCoinsColumn = tableInfo.some(col => col.name === 'coins');
+if (!hasCoinsColumn) {
+  db.exec('ALTER TABLE users ADD COLUMN coins INTEGER NOT NULL DEFAULT 0;');
 }
 
 // Seed initial data if empty
@@ -100,6 +144,17 @@ if (userCount.count === 0) {
     const hashedPassword = bcrypt.hashSync(adminPassword, 10);
     db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, teacher.id);
   }
+}
+
+// Seed default ranks if ranks table is empty
+const rankCount = db.prepare('SELECT COUNT(*) as count FROM ranks').get() as { count: number };
+if (rankCount.count === 0) {
+  const insertRank = db.prepare('INSERT INTO ranks (name, icon, threshold, orderIndex) VALUES (?, ?, ?, ?)');
+  insertRank.run('RawPixel', '🟩', 0, 1);
+  insertRank.run('Logic Initiate', '🔷', 50, 2);
+  insertRank.run('Loop Runner', '🔶', 100, 3);
+  insertRank.run('SchemaGuardian', '🛡️', 150, 4);
+  insertRank.run('BlockHero', '🏆', 200, 5);
 }
 
 export default db;

@@ -1,19 +1,37 @@
-import { useState } from 'react';
-import { BookOpen, Building2, Users } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { BookOpen, Building2, Users, MessageCircle, Trophy } from 'lucide-react';
 import ProjectsTab from './ProjectsTab';
 import BuildingsTab from './BuildingsTab';
 import StudentsTab from './StudentsTab';
+import MessagesTab from './MessagesTab';
+import RewardsTab from './RewardsTab';
+import { authFetch } from '../App';
 
-type TabKey = 'projects' | 'buildings' | 'students';
+type TabKey = 'projects' | 'buildings' | 'students' | 'messages' | 'rewards';
 
 const TABS: { key: TabKey; label: string; icon: typeof BookOpen }[] = [
   { key: 'projects', label: 'Projects', icon: BookOpen },
   { key: 'buildings', label: 'Buildings', icon: Building2 },
   { key: 'students', label: 'Students', icon: Users },
+  { key: 'messages', label: 'Messages', icon: MessageCircle },
+  { key: 'rewards', label: 'Rewards', icon: Trophy as any },
 ];
 
 export default function TeacherDashboard() {
   const [activeTab, setActiveTab] = useState<TabKey>('projects');
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const fetchUnread = () => {
+      authFetch('/api/messages')
+        .then(res => res.json())
+        .then((msgs: any[]) => setUnreadCount(msgs.filter(m => !m.isRead).length))
+        .catch(() => {});
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000); // poll every 30s
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -24,13 +42,18 @@ export default function TeacherDashboard() {
           {TABS.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
-              onClick={() => setActiveTab(key)}
-              className={`flex items-center gap-2 px-6 py-2 rounded-lg font-bold transition-colors ${activeTab === key
+              onClick={() => { setActiveTab(key); if (key === 'messages') setUnreadCount(0); }}
+              className={`relative flex items-center gap-2 px-6 py-2 rounded-lg font-bold transition-colors ${activeTab === key
                   ? 'bg-white text-orange-600 shadow-sm'
                   : 'text-orange-800 hover:bg-orange-200/50'
                 }`}
             >
               <Icon size={18} /> {label}
+              {key === 'messages' && unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                  {unreadCount}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -39,6 +62,8 @@ export default function TeacherDashboard() {
       {activeTab === 'projects' && <ProjectsTab />}
       {activeTab === 'buildings' && <BuildingsTab />}
       {activeTab === 'students' && <StudentsTab />}
+      {activeTab === 'messages' && <MessagesTab />}
+      {activeTab === 'rewards' && <RewardsTab />}
     </div>
   );
 }

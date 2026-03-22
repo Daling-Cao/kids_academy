@@ -108,6 +108,23 @@ export default function StudentsTab() {
         }
     };
 
+    const handleUpdateCoins = async (studentId: number, amount: number, reason: string) => {
+        try {
+            const res = await authFetch(`/api/users/${studentId}/coins`, {
+                method: 'POST',
+                body: JSON.stringify({ amount, reason })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert(`Successfully adjusted coins by ${amount}.`);
+            } else {
+                alert(data.message || 'Failed to adjust coins.');
+            }
+        } catch {
+            alert('An error occurred while adjusting coins.');
+        }
+    };
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Students List */}
@@ -241,6 +258,45 @@ export default function StudentsTab() {
                             <p className="text-stone-600 mt-1">Manage building visibility and project progress.</p>
                         </div>
                         <div className="overflow-y-auto flex-grow p-6 space-y-8">
+
+                            {/* BlockCoins Management Section */}
+                            <div>
+                                <h3 className="text-xl font-bold text-amber-700 mb-4 flex items-center gap-2">
+                                    <span className="text-2xl">🪙</span> BlockCoins
+                                </h3>
+                                <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-6 rounded-2xl border-2 border-amber-200 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
+                                     <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-200/40 rounded-full blur-2xl -mt-10 -mr-10"></div>
+                                     <div className="relative z-10 flex items-center gap-4">
+                                        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-3xl shadow-inner border border-amber-200 font-black text-amber-600">
+                                            {selectedStudent.coins || 0}
+                                        </div>
+                                        <div>
+                                            <div className="font-bold text-stone-800 text-lg">Current Balance</div>
+                                            <div className="text-sm text-stone-600">Adjust the student's BlockCoins manually below.</div>
+                                        </div>
+                                     </div>
+                                     <form 
+                                        className="relative z-10 flex items-center gap-2"
+                                        onSubmit={(e) => {
+                                            e.preventDefault();
+                                            const target = e.target as any;
+                                            const amount = parseInt(target.amount.value);
+                                            const reason = target.reason.value;
+                                            if (amount && reason) {
+                                                handleUpdateCoins(selectedStudent.id, amount, reason).then(() => {
+                                                    target.reset();
+                                                    fetchStudents();
+                                                    setSelectedStudent(prev => prev ? { ...prev, coins: Math.max(0, (prev.coins || 0) + amount) } : null);
+                                                });
+                                            }
+                                        }}
+                                     >
+                                         <input type="number" name="amount" placeholder="+/- Amount" className="w-28 px-3 py-2 rounded-xl border border-amber-200 outline-none focus:border-amber-400" required />
+                                         <input type="text" name="reason" placeholder="Reason (e.g. Good behavior)" className="w-48 px-3 py-2 rounded-xl border border-amber-200 outline-none focus:border-amber-400" required />
+                                         <button type="submit" className="px-4 py-2 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 shadow-md transition-colors">Apply</button>
+                                     </form>
+                                </div>
+                            </div>
 
                             {/* Building Visibility Section */}
                             <div>

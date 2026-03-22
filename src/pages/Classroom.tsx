@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { CheckSquare, Square, Download, ArrowLeft, CheckCircle2, XCircle } from 'lucide-react';
 import DOMPurify from 'isomorphic-dompurify';
+import { motion, AnimatePresence } from 'motion/react';
 import { authFetch } from '../App';
+import SelectionPopup from '../components/SelectionPopup';
 import type { User, Project, Quiz } from '../types';
 
 export default function Classroom({ user }: { user: User }) {
@@ -15,6 +17,8 @@ export default function Classroom({ user }: { user: User }) {
   const [showResults, setShowResults] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showCoinAnimation, setShowCoinAnimation] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -51,11 +55,22 @@ export default function Classroom({ user }: { user: User }) {
   }, [id, user.id]);
 
   const handleComplete = async () => {
-    await authFetch(`/api/student/projects/${id}/complete`, {
-      method: 'POST',
-      body: JSON.stringify({ userId: user.id })
-    });
-    setCompleted(true);
+    try {
+      const res = await authFetch(`/api/student/projects/${id}/complete`, {
+        method: 'POST',
+        body: JSON.stringify({ userId: user.id })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCompleted(true);
+        if (data.coinAwarded) {
+          setShowCoinAnimation(true);
+          setTimeout(() => setShowCoinAnimation(false), 3000);
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to complete project', err);
+    }
   };
 
   const handleAnswerChange = (quizIndex: number, optionIndex: number) => {
@@ -79,7 +94,31 @@ export default function Classroom({ user }: { user: User }) {
   if (!project) return <div className="text-center p-8 text-stone-500">Classroom not found.</div>;
 
   return (
-    <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden border-4 border-orange-100">
+    <>
+      {/* ─── Coin Celebration Animation ─── */}
+      <AnimatePresence>
+        {showCoinAnimation && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.5, y: 50 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 1.5, y: -50 }}
+            transition={{ duration: 0.6, type: 'spring', bounce: 0.4 }}
+            className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center"
+          >
+            <div className="bg-gradient-to-br from-yellow-300 to-orange-500 rounded-3xl p-8 shadow-2xl border-4 border-white flex flex-col items-center gap-4">
+              <span className="text-6xl drop-shadow-md">🪙</span>
+              <div className="text-4xl font-black text-white drop-shadow-lg tracking-wider">
+                +1 BlockCoin!
+              </div>
+              <div className="text-xl font-bold text-yellow-100 drop-shadow-sm">
+                Awesome job! You earned it!
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden border-4 border-orange-100">
       <div className="bg-orange-400 p-6 flex items-center justify-between">
         <button
           onClick={() => navigate(`/building/${project.buildingId}`)}
@@ -104,7 +143,8 @@ export default function Classroom({ user }: { user: User }) {
         <div className="prose prose-orange max-w-none mb-12">
           <h2 className="text-2xl font-bold text-orange-800 mb-4">Lesson Content</h2>
           <div
-            className="text-stone-700 leading-relaxed text-lg"
+            ref={contentRef}
+            className="text-stone-700 leading-relaxed text-lg select-text"
             dangerouslySetInnerHTML={{ __html: sanitize(project.content || '') }}
           />
         </div>
@@ -232,5 +272,7 @@ export default function Classroom({ user }: { user: User }) {
         </div>
       </div>
     </div>
+      <SelectionPopup user={user} contentRef={contentRef} projectTitle={project.title} />
+    </>
   );
 }

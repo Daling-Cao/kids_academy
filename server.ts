@@ -115,7 +115,7 @@ async function startServer() {
       return;
     }
 
-    const user = db.prepare('SELECT id, username, password, role, name, avatar FROM users WHERE username = ?').get(username) as any;
+    const user = db.prepare('SELECT id, username, password, role, name, avatar, coins FROM users WHERE username = ?').get(username) as any;
 
     if (!user || !bcrypt.compareSync(password, user.password)) {
       res.status(401).json({ success: false, message: 'Invalid credentials' });
@@ -130,7 +130,7 @@ async function startServer() {
 
     res.json({
       success: true,
-      user: { id: user.id, username: user.username, role: user.role, name: user.name, avatar: user.avatar },
+      user: { id: user.id, username: user.username, role: user.role, name: user.name, avatar: user.avatar, coins: user.coins || 0 },
       token,
     });
   });
@@ -213,6 +213,79 @@ async function startServer() {
     }
   });
 
+  // ─── Messaging Routes ─────────────────────────────────────────────
+
+  // Student: send a message to the teacher
+  app.post('/api/messages', authMiddleware, (req: AuthRequest, res: Response) => {
+    const { content } = req.body;
+    const fromUserId = req.user?.id;
+    if (!fromUserId) {
+      res.status(401).json({ success: false, message: 'Not authenticated' });
+      return;
+    }
+    if (!content || typeof content !== 'string' || content.trim().length === 0) {
+      res.status(400).json({ success: false, message: 'Message cannot be empty.' });
+      return;
+    }
+    if (content.length > 1000) {
+      res.status(400).json({ success: false, message: 'Message too long (max 1000 characters).' });
+      return;
+    }
+    try {
+      const result = db.prepare('INSERT INTO messages (fromUserId, content) VALUES (?, ?)').run(fromUserId, content.trim());
+      res.json({ success: true, id: result.lastInsertRowid });
+    } catch (error: any) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  });
+
+  // Teacher: get all messages with sender info
+  app.get('/api/messages', authMiddleware, teacherOnly, (_req: AuthRequest, res: Response) => {
+    const messages = db.prepare(`
+      SELECT m.id, m.content, m.createdAt, m.isRead, m.reply, m.repliedAt,
+             u.id as fromUserId, u.username as fromUsername, u.name as fromName, u.avatar as fromAvatar
+      FROM messages m
+      JOIN users u ON m.fromUserId = u.id
+      ORDER BY m.createdAt DESC
+    `).all();
+    res.json(messages);
+  });
+
+  // Teacher: reply to a message
+  app.put('/api/messages/:id/reply', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    const { reply } = req.body;
+    if (!reply || typeof reply !== 'string' || reply.trim().length === 0) {
+      res.status(400).json({ success: false, message: 'Reply cannot be empty.' });
+      return;
+    }
+    db.prepare('UPDATE messages SET reply = ?, repliedAt = datetime(\'now\'), isRead = 1 WHERE id = ?').run(reply.trim(), id);
+    res.json({ success: true });
+  });
+
+  // Teacher: mark message as read
+  app.put('/api/messages/:id/read', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    db.prepare('UPDATE messages SET isRead = 1 WHERE id = ?').run(id);
+    res.json({ success: true });
+  });
+
+  // Teacher: delete a message
+  app.delete('/api/messages/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    db.prepare('DELETE FROM messages WHERE id = ?').run(id);
+    res.json({ success: true });
+  });
+
+  // Student: get own messages and teacher replies
+  app.get('/api/messages/mine', authMiddleware, (req: AuthRequest, res: Response) => {
+    const userId = req.user?.id;
+    const messages = db.prepare(
+      'SELECT id, content, createdAt, reply, repliedAt FROM messages WHERE fromUserId = ? ORDER BY createdAt DESC'
+    ).all(userId);
+    res.json(messages);
+  });
+
   // ─── Student Routes (authenticated) ──────────────────────────────
 
   // Get visible buildings for a student
@@ -272,7 +345,7 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  // Complete a project (Student)
+  // Complete a project (Student) — awards 1 BlockCoin (deduplicated)
   app.post('/api/student/projects/:projectId/complete', authMiddleware, studentSelfOnly, (req: AuthRequest, res: Response) => {
     const { projectId } = req.params;
     const { userId } = req.body;
@@ -283,7 +356,20 @@ async function startServer() {
     } else {
       db.prepare('INSERT INTO user_progress (userId, projectId, state) VALUES (?, ?, ?)').run(userId, projectId, 'completed');
     }
-    res.json({ success: true });
+
+    // Award 1 BlockCoin if not already awarded for this project
+    let coinAwarded = false;
+    const alreadyAwarded = db.prepare(
+      'SELECT id FROM coin_transactions WHERE userId = ? AND refType = ? AND refId = ?'
+    ).get(userId, 'project_complete', String(projectId));
+    if (!alreadyAwarded) {
+      db.prepare('INSERT INTO coin_transactions (userId, amount, reason, refType, refId) VALUES (?, ?, ?, ?, ?)')
+        .run(userId, 1, 'Completed a project', 'project_complete', String(projectId));
+      db.prepare('UPDATE users SET coins = coins + 1 WHERE id = ?').run(userId);
+      coinAwarded = true;
+    }
+
+    res.json({ success: true, coinAwarded });
   });
 
   // Get single project
@@ -521,6 +607,94 @@ async function startServer() {
     // user_progress automatically deleted by FK ON DELETE CASCADE
     db.prepare('DELETE FROM projects WHERE id = ?').run(id);
     res.json({ success: true });
+  });
+
+  // ─── Rewards / Ranks / Coins Routes ──────────────────────────────
+
+  // Get all ranks (any authenticated user)
+  app.get('/api/ranks', authMiddleware, (_req: AuthRequest, res: Response) => {
+    const ranks = db.prepare('SELECT * FROM ranks ORDER BY orderIndex ASC').all();
+    res.json(ranks);
+  });
+
+  // Get student coins & rank info
+  app.get('/api/student/coins/:userId', authMiddleware, studentSelfOnly, (req: AuthRequest, res: Response) => {
+    const { userId } = req.params;
+    const user = db.prepare('SELECT coins FROM users WHERE id = ?').get(userId) as any;
+    if (!user) {
+      res.status(404).json({ success: false, message: 'User not found' });
+      return;
+    }
+    const coins = user.coins || 0;
+    const ranks = db.prepare('SELECT * FROM ranks ORDER BY threshold ASC').all() as any[];
+
+    // Find current rank (highest threshold <= coins)
+    let currentRank = null;
+    let nextRank = null;
+    for (let i = 0; i < ranks.length; i++) {
+      if (ranks[i].threshold <= coins) {
+        currentRank = ranks[i];
+        nextRank = ranks[i + 1] || null;
+      }
+    }
+
+    // Progress toward next rank
+    let progress = 1;
+    if (currentRank && nextRank) {
+      const rangeSize = nextRank.threshold - currentRank.threshold;
+      progress = rangeSize > 0 ? (coins - currentRank.threshold) / rangeSize : 1;
+    }
+
+    res.json({ coins, rank: currentRank, nextRank, progress });
+  });
+
+  // Teacher: Create a new rank
+  app.post('/api/ranks', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { name, icon, threshold } = req.body;
+    if (!name || threshold == null) {
+      res.status(400).json({ success: false, message: 'Name and threshold are required.' });
+      return;
+    }
+    const maxOrder = db.prepare('SELECT MAX(orderIndex) as max FROM ranks').get() as { max: number };
+    const orderIndex = (maxOrder.max || 0) + 1;
+    const result = db.prepare('INSERT INTO ranks (name, icon, threshold, orderIndex) VALUES (?, ?, ?, ?)')
+      .run(name, icon || '⭐', threshold, orderIndex);
+    res.json({ success: true, id: result.lastInsertRowid });
+  });
+
+  // Teacher: Update a rank
+  app.put('/api/ranks/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    const { name, icon, threshold } = req.body;
+    db.prepare('UPDATE ranks SET name = ?, icon = ?, threshold = ? WHERE id = ?').run(name, icon, threshold, id);
+    res.json({ success: true });
+  });
+
+  // Teacher: Delete a rank
+  app.delete('/api/ranks/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    db.prepare('DELETE FROM ranks WHERE id = ?').run(id);
+    res.json({ success: true });
+  });
+
+  // Teacher: Manually adjust student coins
+  app.post('/api/users/:id/coins', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    const { amount, reason } = req.body;
+    if (amount == null || !reason) {
+      res.status(400).json({ success: false, message: 'Amount and reason are required.' });
+      return;
+    }
+    const intAmount = parseInt(amount, 10);
+    if (isNaN(intAmount)) {
+      res.status(400).json({ success: false, message: 'Amount must be a number.' });
+      return;
+    }
+    db.prepare('INSERT INTO coin_transactions (userId, amount, reason, refType) VALUES (?, ?, ?, ?)')
+      .run(id, intAmount, reason, 'teacher_manual');
+    db.prepare('UPDATE users SET coins = MAX(0, coins + ?) WHERE id = ?').run(intAmount, id);
+    const user = db.prepare('SELECT coins FROM users WHERE id = ?').get(id) as any;
+    res.json({ success: true, coins: user?.coins || 0 });
   });
 
   // ─── Vite middleware for development ─────────────────────────────
