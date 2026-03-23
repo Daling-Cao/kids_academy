@@ -7,7 +7,7 @@ import DOMPurify from 'isomorphic-dompurify';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import db from './src/db.js';
+import db from './src/db.ts';
 
 // JWT secret — required in all environments
 const JWT_SECRET = process.env.JWT_SECRET;
