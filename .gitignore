@@ -12,3 +12,4 @@ fix*.cjs
 fix*.js
 uploads/
 metadata.json
+test_malicious.js

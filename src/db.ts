@@ -121,7 +121,11 @@ if (!hasCoinsColumn) {
 
 // Seed initial data if empty
 const adminUsername = process.env.ADMIN_USERNAME || 'teacher';
-const adminPassword = process.env.ADMIN_PASSWORD || 'password';
+const adminPassword = process.env.ADMIN_PASSWORD || 'kids-academy-default-secure-pwd-123'; // More unique placeholder
+
+if (process.env.NODE_ENV === 'production' && !process.env.ADMIN_PASSWORD) {
+  console.warn('WARNING: ADMIN_PASSWORD not set in environment variables. Using default placeholder.');
+}
 
 const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
 if (userCount.count === 0) {
@@ -138,11 +142,14 @@ if (userCount.count === 0) {
   insertProject.run(b1.lastInsertRowid, 'Animation', 'Create your first animation.', 'Let us animate a character.', '', '10128407', '', 0, 2);
   insertProject.run(b2.lastInsertRowid, 'Games', 'Build a simple game.', 'Time to build a game!', '', '10128515', '', 1, 1);
 } else {
-  // Sync teacher credentials from env on every restart
-  const teacher = db.prepare('SELECT id FROM users WHERE username = ? AND role = ?').get(adminUsername, 'teacher') as any;
-  if (teacher) {
-    const hashedPassword = bcrypt.hashSync(adminPassword, 10);
-    db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, teacher.id);
+  // Sync teacher credentials from env only if provided
+  if (process.env.ADMIN_PASSWORD) {
+    const teacher = db.prepare('SELECT id FROM users WHERE username = ? AND role = ?').get(adminUsername, 'teacher') as any;
+    if (teacher) {
+      const hashedPassword = bcrypt.hashSync(process.env.ADMIN_PASSWORD, 10);
+      db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, teacher.id);
+      console.log('Teacher password synced from environment variables.');
+    }
   }
 }
 
