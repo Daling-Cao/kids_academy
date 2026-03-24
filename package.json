@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "init-db": "tsx init-db.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
