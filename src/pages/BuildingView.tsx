@@ -4,8 +4,10 @@ import { ArrowLeft } from 'lucide-react';
 import Door from '../components/Door';
 import { authFetch } from '../App';
 import type { User, Building, ProjectWithState } from '../types';
+import { useI18n } from '../i18n';
 
 export default function BuildingView({ user }: { user: User }) {
+  const { t } = useI18n();
   const { buildingId } = useParams();
   const [projects, setProjects] = useState<ProjectWithState[]>([]);
   const [building, setBuilding] = useState<Building | null>(null);
@@ -30,10 +32,10 @@ export default function BuildingView({ user }: { user: User }) {
       .then(([buildingData, projectsData]) => {
         setBuilding(buildingData);
         
-        const lang = navigator.language.toLowerCase().startsWith('zh') ? 'zh' : navigator.language.toLowerCase().startsWith('de') ? 'de' : 'en';
+        const lang = navigator.language.toLowerCase().startsWith('de') ? 'de' : 'zh';
         const localizedProjects = projectsData.map((p: any) => ({
           ...p,
-          title: lang === 'zh' ? (p.titleZh || p.title) : lang === 'de' ? (p.titleDe || p.title) : p.title
+          title: lang === 'de' ? (p.titleDe || p.title) : p.title
         }));
         
         setProjects(localizedProjects);
@@ -44,7 +46,7 @@ export default function BuildingView({ user }: { user: User }) {
 
   const handleDoorClick = async (project: ProjectWithState) => {
     if (project.state === 'locked') {
-      alert('This classroom is locked! Complete the previous one first.');
+      alert(t.lockedClassroom);
       return;
     }
 
@@ -58,9 +60,9 @@ export default function BuildingView({ user }: { user: User }) {
     navigate(`/classroom/${project.id}`);
   };
 
-  if (loading) return <div className="text-center p-8 text-stone-500">Loading building...</div>;
+  if (loading) return <div className="text-center p-8 text-stone-500">{t.loading}</div>;
   if (error) return <div className="text-center p-8 text-red-500">{error}</div>;
-  if (!building) return <div className="text-center p-8 text-stone-500">Building not found.</div>;
+  if (!building) return <div className="text-center p-8 text-stone-500">{t.notFoundBuilding}</div>;
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -69,7 +71,7 @@ export default function BuildingView({ user }: { user: User }) {
           onClick={() => navigate('/dashboard')}
           className="flex items-center gap-2 text-orange-600 hover:text-orange-800 bg-orange-100 hover:bg-orange-200 px-4 py-2 rounded-xl transition-colors font-bold"
         >
-          <ArrowLeft size={20} /> Back to Campus
+          <ArrowLeft size={20} /> {t.backToCampus}
         </button>
       </div>
 
@@ -89,7 +91,7 @@ export default function BuildingView({ user }: { user: User }) {
         ))}
         {projects.length === 0 && (
           <div className="col-span-full text-center text-stone-500 py-12">
-            No classrooms available in this building yet.
+            {t.noClassrooms}
           </div>
         )}
       </div>

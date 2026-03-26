@@ -3,8 +3,10 @@ import { Plus, Edit2, Trash2, Save, X, Trophy } from 'lucide-react';
 import { authFetch } from '../App';
 import ImageUpload from '../components/ImageUpload';
 import type { Rank } from '../types';
+import { useI18n } from '../i18n';
 
 export default function RewardsTab() {
+  const { t } = useI18n();
   const [ranks, setRanks] = useState<Rank[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingRank, setEditingRank] = useState<Rank | null>(null);
@@ -85,7 +87,7 @@ export default function RewardsTab() {
           onClick={() => setShowAddForm(!showAddForm)}
           className="flex items-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-xl hover:bg-amber-600 transition-colors font-bold shadow-md"
         >
-          <Plus size={20} /> Add Rank
+          <Plus size={20} /> {t.addRank}
         </button>
       </div>
 
@@ -100,7 +102,7 @@ export default function RewardsTab() {
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">Rank Name</label>
+              <label className="block text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">{t.rankName}</label>
               <input
                 type="text"
                 placeholder="e.g. Master Builder"
@@ -111,7 +113,7 @@ export default function RewardsTab() {
               />
             </div>
             <div className="md:col-span-1">
-              <label className="block text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">Threshold (Coins)</label>
+              <label className="block text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">{t.rankThreshold}</label>
               <input
                 type="number"
                 min="0"
@@ -122,8 +124,8 @@ export default function RewardsTab() {
               />
             </div>
             <div className="md:col-span-4 flex justify-end gap-3 mt-2">
-              <button type="button" onClick={() => setShowAddForm(false)} className="px-6 py-2 rounded-xl text-stone-600 hover:bg-stone-200 font-bold transition-colors">Cancel</button>
-              <button type="submit" className="px-6 py-2 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-600 shadow-md transition-colors">Save Rank</button>
+              <button type="button" onClick={() => setShowAddForm(false)} className="px-6 py-2 rounded-xl text-stone-600 hover:bg-stone-200 font-bold transition-colors">{t.cancel}</button>
+              <button type="submit" className="px-6 py-2 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-600 shadow-md transition-colors">{t.save}</button>
             </div>
           </form>
         )}
@@ -203,7 +205,7 @@ export default function RewardsTab() {
           {ranks.length === 0 && !showAddForm && (
             <div className="text-center py-12 text-stone-400 flex flex-col items-center">
               <Trophy size={48} className="mb-4 opacity-20" />
-              <p>No ranks configured yet. Click "Add Rank" to create the first one.</p>
+              <p>{t.noRewards}</p>
             </div>
           )}
         </div>

@@ -4,8 +4,10 @@ import { authFetch } from '../App';
 import MessageButton from '../components/MessageButton';
 import StudentInbox from '../components/StudentInbox';
 import type { User, Building, StudentCoinInfo } from '../types';
+import { useI18n } from '../i18n';
 
 export default function StudentDashboard({ user }: { user: User }) {
+  const { t } = useI18n();
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -29,7 +31,7 @@ export default function StudentDashboard({ user }: { user: User }) {
       .finally(() => setLoading(false));
   }, [user.id]);
 
-  if (loading) return <div className="text-center p-8 text-stone-500">Loading campus...</div>;
+  if (loading) return <div className="text-center p-8 text-stone-500">{t.loading}</div>;
   if (error) return <div className="text-center p-8 text-red-500">{error}</div>;
 
   return (
@@ -61,7 +63,7 @@ export default function StudentDashboard({ user }: { user: User }) {
                 {/* Coin Count */}
                 <div className="flex items-baseline gap-2 mt-0.5">
                   <span className="text-3xl font-black text-stone-800">{coinInfo.coins}</span>
-                  <span className="text-sm font-bold text-amber-600">BlockCoin 🪙</span>
+                  <span className="text-sm font-bold text-amber-600"> {t.myCoins} 🪙</span>
                 </div>
 
                 {/* Progress Bar */}
@@ -96,7 +98,7 @@ export default function StudentDashboard({ user }: { user: User }) {
       )}
 
       <h1 className="text-4xl font-extrabold text-orange-600 text-center mb-12 drop-shadow-sm">
-        Welcome to the Campus!
+        {t.campus}
       </h1>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12 justify-items-center mt-8">

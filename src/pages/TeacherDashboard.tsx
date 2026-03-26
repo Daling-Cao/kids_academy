@@ -6,20 +6,22 @@ import StudentsTab from './StudentsTab';
 import MessagesTab from './MessagesTab';
 import RewardsTab from './RewardsTab';
 import { authFetch } from '../App';
+import { useI18n } from '../i18n';
 
 type TabKey = 'projects' | 'buildings' | 'students' | 'messages' | 'rewards';
 
-const TABS: { key: TabKey; label: string; icon: typeof BookOpen }[] = [
-  { key: 'projects', label: 'Projects', icon: BookOpen },
-  { key: 'buildings', label: 'Buildings', icon: Building2 },
-  { key: 'students', label: 'Students', icon: Users },
-  { key: 'messages', label: 'Messages', icon: MessageCircle },
-  { key: 'rewards', label: 'Rewards', icon: Trophy as any },
-];
-
 export default function TeacherDashboard() {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<TabKey>('projects');
   const [unreadCount, setUnreadCount] = useState(0);
+
+  const TABS: { key: TabKey; label: string; icon: typeof BookOpen }[] = [
+    { key: 'projects', label: t.tabProjects, icon: BookOpen },
+    { key: 'buildings', label: t.tabBuildings, icon: Building2 },
+    { key: 'students', label: t.tabStudents, icon: Users },
+    { key: 'messages', label: t.tabMessages, icon: MessageCircle },
+    { key: 'rewards', label: t.tabRewards, icon: Trophy as any },
+  ];
 
   useEffect(() => {
     const fetchUnread = () => {
@@ -36,7 +38,7 @@ export default function TeacherDashboard() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-        <h1 className="text-3xl font-bold text-orange-800">Teacher Dashboard</h1>
+        <h1 className="text-3xl font-bold text-orange-800">{t.teacherDashboard}</h1>
 
         <div className="flex bg-orange-100 p-1 rounded-xl">
           {TABS.map(({ key, label, icon: Icon }) => (

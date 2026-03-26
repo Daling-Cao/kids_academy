@@ -3,8 +3,10 @@ import { Plus, Edit2, Trash2, Save, X, Building2 } from 'lucide-react';
 import ImageUpload from '../components/ImageUpload';
 import { authFetch } from '../App';
 import type { Building } from '../types';
+import { useI18n } from '../i18n';
 
 export default function BuildingsTab() {
+    const { t } = useI18n();
     const [buildings, setBuildings] = useState<Building[]>([]);
     const [showAddForm, setShowAddForm] = useState(false);
     const [editingBuilding, setEditingBuilding] = useState<Building | null>(null);
@@ -59,16 +61,16 @@ export default function BuildingsTab() {
                     onClick={() => setShowAddForm(!showAddForm)}
                     className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-xl font-bold shadow-md hover:bg-orange-600 transition-colors"
                 >
-                    <Plus size={20} /> Add New Building
+                    <Plus size={20} /> {t.addBuilding}
                 </button>
             </div>
 
             {showAddForm && (
                 <div className="bg-white p-6 rounded-2xl shadow-lg border-2 border-orange-100 mb-8">
-                    <h2 className="text-xl font-bold text-orange-700 mb-4">Create New Building</h2>
+                    <h2 className="text-xl font-bold text-orange-700 mb-4">{t.addBuilding}</h2>
                     <form onSubmit={handleAddBuilding} className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-stone-600 mb-1">Name (e.g., 小学, 中学, 大学)</label>
+                            <label className="block text-sm font-medium text-stone-600 mb-1">{t.buildingName}</label>
                             <input
                                 type="text"
                                 value={newBuilding.name}
@@ -82,7 +84,7 @@ export default function BuildingsTab() {
                             onChange={(url) => setNewBuilding({ ...newBuilding, coverImage: url })}
                         />
                         <div>
-                            <label className="block text-sm font-medium text-stone-600 mb-1">Description</label>
+                            <label className="block text-sm font-medium text-stone-600 mb-1">{t.buildingDesc}</label>
                             <textarea
                                 value={newBuilding.description}
                                 onChange={(e) => setNewBuilding({ ...newBuilding, description: e.target.value })}
@@ -96,13 +98,13 @@ export default function BuildingsTab() {
                                 onClick={() => setShowAddForm(false)}
                                 className="px-4 py-2 rounded-xl font-bold text-stone-500 hover:bg-stone-100 transition-colors"
                             >
-                                Cancel
+                                {t.cancel}
                             </button>
                             <button
                                 type="submit"
                                 className="px-6 py-2 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-colors shadow-md"
                             >
-                                Save Building
+                                {t.saveBuilding}
                             </button>
                         </div>
                     </form>
@@ -115,7 +117,7 @@ export default function BuildingsTab() {
                         {editingBuilding?.id === building.id ? (
                             <form onSubmit={handleUpdateBuilding} className="w-full bg-white rounded-2xl shadow-lg border-2 border-orange-100 p-6 flex flex-col space-y-4 relative z-30">
                                 <div>
-                                    <label className="block text-sm font-medium text-stone-600 mb-1">Name</label>
+                                    <label className="block text-sm font-medium text-stone-600 mb-1">{t.buildingName}</label>
                                     <input
                                         type="text"
                                         value={editingBuilding.name}
@@ -129,7 +131,7 @@ export default function BuildingsTab() {
                                     onChange={(url) => setEditingBuilding({ ...editingBuilding, coverImage: url })}
                                 />
                                 <div>
-                                    <label className="block text-sm font-medium text-stone-600 mb-1">Description</label>
+                                    <label className="block text-sm font-medium text-stone-600 mb-1">{t.buildingDesc}</label>
                                     <textarea
                                         value={editingBuilding.description}
                                         onChange={(e) => setEditingBuilding({ ...editingBuilding, description: e.target.value })}
@@ -205,7 +207,7 @@ export default function BuildingsTab() {
                 ))}
                 {buildings.length === 0 && (
                     <div className="col-span-full p-8 text-center text-stone-400 bg-white rounded-2xl border-2 border-dashed border-orange-200">
-                        No buildings found. Add one to get started!
+                        {t.noData}
                     </div>
                 )}
             </div>

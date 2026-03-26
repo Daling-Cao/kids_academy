@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Save, X, Users, Lock, Unlock, CheckCircle, PlayCircle, Eye, EyeOff, Building2, BookOpen, KeyRound } from 'lucide-react';
 import { authFetch } from '../App';
 import type { User, Building, StudentProgress, BuildingWithVisibility } from '../types';
+import { useI18n } from '../i18n';
 
 export default function StudentsTab() {
+    const { t } = useI18n();
     const [students, setStudents] = useState<User[]>([]);
     const [showAddForm, setShowAddForm] = useState(false);
     const [editingStudent, setEditingStudent] = useState<{ id: number; username: string; password: string } | null>(null);
@@ -130,11 +132,11 @@ export default function StudentsTab() {
             {/* Students List */}
             <div className="lg:col-span-1 bg-white rounded-2xl shadow-lg border-2 border-orange-100 overflow-hidden flex flex-col h-[calc(100vh-200px)]">
                 <div className="p-4 border-b-2 border-orange-100 flex justify-between items-center bg-orange-50">
-                    <h2 className="text-xl font-bold text-orange-800">Students</h2>
+                    <h2 className="text-xl font-bold text-orange-800">{t.studentList}</h2>
                     <button
                         onClick={() => setShowAddForm(!showAddForm)}
                         className="p-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-                        title="Add Student"
+                        title={t.addStudent}
                     >
                         <Plus size={20} />
                     </button>
@@ -153,15 +155,15 @@ export default function StudentsTab() {
                             />
                             <input
                                 type="password"
-                                placeholder="Password"
+                                placeholder={t.password}
                                 value={newStudent.password}
                                 onChange={e => setNewStudent({ ...newStudent, password: e.target.value })}
                                 className="w-full px-3 py-2 rounded-lg border border-orange-200 focus:border-orange-400 focus:outline-none"
                                 required
                             />
                             <div className="flex justify-end gap-2">
-                                <button type="button" onClick={() => setShowAddForm(false)} className="px-3 py-1 text-sm text-stone-500 hover:bg-stone-200 rounded-lg">Cancel</button>
-                                <button type="submit" className="px-3 py-1 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600">Save</button>
+                                <button type="button" onClick={() => setShowAddForm(false)} className="px-3 py-1 text-sm text-stone-500 hover:bg-stone-200 rounded-lg">{t.cancel}</button>
+                                <button type="submit" className="px-3 py-1 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600">{t.save}</button>
                             </div>
                         </form>
                     )}
@@ -242,7 +244,7 @@ export default function StudentsTab() {
                         </div>
                     ))}
                     {students.length === 0 && !showAddForm && (
-                        <div className="text-center text-stone-400 py-8">No students yet.</div>
+                        <div className="text-center text-stone-400 py-8">{t.noStudentsYet}</div>
                     )}
                 </div>
             </div>
@@ -253,9 +255,9 @@ export default function StudentsTab() {
                     <>
                         <div className="p-6 border-b-2 border-orange-100 bg-orange-50">
                             <h2 className="text-2xl font-bold text-orange-800">
-                                Manage: {selectedStudent.name || selectedStudent.username}
+                                {t.manageStudent} {selectedStudent.name || selectedStudent.username}
                             </h2>
-                            <p className="text-stone-600 mt-1">Manage building visibility and project progress.</p>
+                            <p className="text-stone-600 mt-1"></p>
                         </div>
                         <div className="overflow-y-auto flex-grow p-6 space-y-8">
 
@@ -301,7 +303,7 @@ export default function StudentsTab() {
                             {/* Building Visibility Section */}
                             <div>
                                 <h3 className="text-xl font-bold text-orange-700 mb-4 flex items-center gap-2">
-                                    <Building2 size={24} /> Building Visibility
+                                    <Building2 size={24} /> {t.buildingVisibility}
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {buildingsData.map(building => (
@@ -329,7 +331,7 @@ export default function StudentsTab() {
                             {/* Project Progress Section */}
                             <div>
                                 <h3 className="text-xl font-bold text-orange-700 mb-4 flex items-center gap-2">
-                                    <BookOpen size={24} /> Project Progress
+                                    <BookOpen size={24} /> {t.projectProgress}
                                 </h3>
                                 {progressData.length > 0 ? (
                                     <div className="space-y-6">
@@ -367,7 +369,7 @@ export default function StudentsTab() {
                                                                     className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${project.state === 'completed' ? 'bg-green-100 text-green-700 shadow-inner border border-green-200' : 'bg-white text-stone-500 border border-stone-200 hover:bg-stone-100'
                                                                         }`}
                                                                 >
-                                                                    <CheckCircle size={14} /> Completed
+                                                                    <CheckCircle size={14} /> {t.completed}
                                                                 </button>
                                                             </div>
                                                         </div>

@@ -39,12 +39,12 @@ interface ProjectEditorProps {
 }
 
 export default function ProjectEditor({ project, setProject, onSubmit, onCancel, title, buildings }: ProjectEditorProps) {
-    const [lang, setLang] = useState<'en'|'zh'|'de'>('en');
+    const [lang, setLang] = useState<'zh'|'de'>('zh');
 
-    const tField = lang === 'en' ? 'title' : lang === 'zh' ? 'titleZh' : 'titleDe';
-    const dField = lang === 'en' ? 'description' : lang === 'zh' ? 'descriptionZh' : 'descriptionDe';
-    const cField = lang === 'en' ? 'content' : lang === 'zh' ? 'contentZh' : 'contentDe';
-    const qField = lang === 'en' ? 'quizzes' : lang === 'zh' ? 'quizzesZh' : 'quizzesDe';
+    const tField = lang === 'zh' ? 'title' : 'titleDe';
+    const dField = lang === 'zh' ? 'description' : 'descriptionDe';
+    const cField = lang === 'zh' ? 'content' : 'contentDe';
+    const qField = lang === 'zh' ? 'quizzes' : 'quizzesDe';
 
     const handleAddSegment = () => {
         setProject({
@@ -114,8 +114,7 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
             <h2 className="text-xl font-bold text-orange-700 mb-4">{title}</h2>
             
             <div className="flex border-b border-orange-200 mb-6 font-bold text-stone-500">
-                <button type="button" onClick={() => setLang('en')} className={`px-4 py-3 flex-1 transition-colors ${lang === 'en' ? 'text-orange-600 border-b-4 border-orange-500 bg-orange-50/50' : 'hover:bg-stone-50'}`}>English (Default)</button>
-                <button type="button" onClick={() => setLang('zh')} className={`px-4 py-3 flex-1 transition-colors ${lang === 'zh' ? 'text-orange-600 border-b-4 border-orange-500 bg-orange-50/50' : 'hover:bg-stone-50'}`}>中文 (Chinese)</button>
+                <button type="button" onClick={() => setLang('zh')} className={`px-4 py-3 flex-1 transition-colors ${lang === 'zh' ? 'text-orange-600 border-b-4 border-orange-500 bg-orange-50/50' : 'hover:bg-stone-50'}`}>中文 (Chinese) - Default</button>
                 <button type="button" onClick={() => setLang('de')} className={`px-4 py-3 flex-1 transition-colors ${lang === 'de' ? 'text-orange-600 border-b-4 border-orange-500 bg-orange-50/50' : 'hover:bg-stone-50'}`}>Deutsch (German)</button>
             </div>
 
@@ -141,7 +140,7 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                             value={getProjectField(tField)}
                             onChange={(e) => setProject({ ...project, [tField]: e.target.value })}
                             className="w-full px-4 py-2 rounded-xl border-2 border-orange-100 focus:border-orange-400 focus:outline-none bg-orange-50/30"
-                            required={lang === 'en'}
+                            required={lang === 'zh'}
                         />
                     </div>
                 </div>
@@ -158,7 +157,7 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                         onChange={(e) => setProject({ ...project, [dField]: e.target.value })}
                         className="w-full px-4 py-2 rounded-xl border-2 border-orange-100 focus:border-orange-400 focus:outline-none bg-orange-50/30"
                         rows={2}
-                        required={lang === 'en'}
+                        required={lang === 'zh'}
                     />
                 </div>
 

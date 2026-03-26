@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { authFetch } from '../App';
 import { Trash2, CheckCircle, Clock, Reply, Send } from 'lucide-react';
+import { useI18n } from '../i18n';
 
 interface Message {
     id: number;
@@ -16,6 +17,7 @@ interface Message {
 }
 
 export default function MessagesTab() {
+    const { t } = useI18n();
     const [messages, setMessages] = useState<Message[]>([]);
     const [loading, setLoading] = useState(true);
     const [replyingTo, setReplyingTo] = useState<number | null>(null);
@@ -65,15 +67,15 @@ export default function MessagesTab() {
 
     const unreadCount = messages.filter(m => !m.isRead).length;
 
-    if (loading) return <div className="text-center p-8 text-stone-500">Loading messages...</div>;
+    if (loading) return <div className="text-center p-8 text-stone-500">{t.loading}</div>;
 
     return (
         <div className="max-w-3xl mx-auto">
             <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-orange-800">
-                    Student Messages
+                    {t.studentMessages}
                     {unreadCount > 0 && (
-                        <span className="ml-2 bg-orange-500 text-white text-sm px-2 py-0.5 rounded-full">{unreadCount} new</span>
+                        <span className="ml-2 bg-orange-500 text-white text-sm px-2 py-0.5 rounded-full">{unreadCount} {t.newMessages}</span>
                     )}
                 </h2>
                 {messages.length > 0 && unreadCount > 0 && (
@@ -84,7 +86,7 @@ export default function MessagesTab() {
                         }}
                         className="text-sm text-orange-600 hover:underline font-medium"
                     >
-                        Mark all as read
+                        {t.markAllRead}
                     </button>
                 )}
             </div>
@@ -92,8 +94,8 @@ export default function MessagesTab() {
             {messages.length === 0 ? (
                 <div className="text-center py-16 text-stone-400">
                     <div className="text-5xl mb-4">📭</div>
-                    <p className="font-medium">No messages yet</p>
-                    <p className="text-sm mt-1">Students will be able to send you messages from their dashboard.</p>
+                    <p className="font-medium">{t.noMessagesYet}</p>
+                    <p className="text-sm mt-1">{t.studentsCanSendMessages}</p>
                 </div>
             ) : (
                 <div className="space-y-4">
@@ -132,14 +134,14 @@ export default function MessagesTab() {
                             {msg.reply && (
                                 <div className="mt-3 ml-14 bg-blue-50 border-l-4 border-blue-400 rounded-r-xl px-4 py-3">
                                     <div className="text-xs text-blue-500 font-semibold mb-1 flex items-center gap-1">
-                                        <Reply size={12} /> Your reply · {msg.repliedAt ? new Date(msg.repliedAt + 'Z').toLocaleString() : ''}
+                                        <Reply size={12} /> {t.yourReply} · {msg.repliedAt ? new Date(msg.repliedAt + 'Z').toLocaleString() : ''}
                                     </div>
                                     <p className="text-stone-700 text-sm whitespace-pre-wrap">{msg.reply}</p>
                                     <button
                                         onClick={() => { setReplyingTo(msg.id); setReplyText(msg.reply || ''); }}
                                         className="text-xs text-blue-500 hover:underline mt-1"
                                     >
-                                        Edit reply
+                                        {t.editReply}
                                     </button>
                                 </div>
                             )}
@@ -150,7 +152,7 @@ export default function MessagesTab() {
                                     <textarea
                                         value={replyText}
                                         onChange={e => setReplyText(e.target.value)}
-                                        placeholder="Write your reply..."
+                                        placeholder={t.writeReply}
                                         rows={2}
                                         autoFocus
                                         className="w-full px-3 py-2 text-sm rounded-xl border-2 border-blue-200 focus:border-blue-400 focus:outline-none resize-none"
@@ -161,13 +163,13 @@ export default function MessagesTab() {
                                             disabled={sendingReply || !replyText.trim()}
                                             className="flex items-center gap-1.5 px-4 py-2 bg-blue-500 text-white rounded-xl text-sm font-bold hover:bg-blue-600 disabled:opacity-50 transition-colors"
                                         >
-                                            <Send size={13} /> {sendingReply ? 'Sending...' : 'Send Reply'}
+                                            <Send size={13} /> {sendingReply ? t.sending : t.sendReply}
                                         </button>
                                         <button
                                             onClick={() => { setReplyingTo(null); setReplyText(''); }}
                                             className="px-4 py-2 text-stone-500 rounded-xl text-sm hover:bg-stone-100 transition-colors"
                                         >
-                                            Cancel
+                                            {t.cancel}
                                         </button>
                                     </div>
                                 </div>
@@ -179,7 +181,7 @@ export default function MessagesTab() {
                                         onClick={() => handleMarkRead(msg.id)}
                                         className="text-xs text-green-600 hover:bg-green-50 px-3 py-1.5 rounded-lg font-medium flex items-center gap-1 transition-colors"
                                     >
-                                        <CheckCircle size={14} /> Mark as read
+                                        <CheckCircle size={14} /> {t.markAsRead}
                                     </button>
                                 )}
                                 {replyingTo !== msg.id && (
@@ -187,14 +189,14 @@ export default function MessagesTab() {
                                         onClick={() => { setReplyingTo(msg.id); setReplyText(''); }}
                                         className="text-xs text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg font-medium flex items-center gap-1 transition-colors"
                                     >
-                                        <Reply size={14} /> Reply
+                                        <Reply size={14} /> {t.reply}
                                     </button>
                                 )}
                                 <button
                                     onClick={() => handleDelete(msg.id)}
                                     className="text-xs text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg font-medium flex items-center gap-1 transition-colors"
                                 >
-                                    <Trash2 size={14} /> Delete
+                                    <Trash2 size={14} /> {t.delete}
                                 </button>
                             </div>
                         </div>

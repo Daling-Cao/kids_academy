@@ -6,8 +6,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import { authFetch } from '../App';
 import SelectionPopup from '../components/SelectionPopup';
 import type { User, Project, Quiz } from '../types';
+import { useI18n } from '../i18n';
 
 export default function Classroom({ user }: { user: User }) {
+  const { t } = useI18n();
   const { id } = useParams();
   const navigate = useNavigate();
   const [project, setProject] = useState<Project | null>(null);
@@ -20,7 +22,7 @@ export default function Classroom({ user }: { user: User }) {
   const [showCoinAnimation, setShowCoinAnimation] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  const lang = navigator.language.toLowerCase().startsWith('zh') ? 'zh' : navigator.language.toLowerCase().startsWith('de') ? 'de' : 'en';
+  const lang = navigator.language.toLowerCase().startsWith('de') ? 'de' : 'zh';
 
   useEffect(() => {
     setLoading(true);
@@ -133,14 +135,14 @@ export default function Classroom({ user }: { user: User }) {
 
   const sanitize = (html: string) => DOMPurify.sanitize(html);
 
-  if (loading) return <div className="text-center p-8 text-stone-500">Loading classroom...</div>;
+  if (loading) return <div className="text-center p-8 text-stone-500">{t.loading}</div>;
   if (error) return <div className="text-center p-8 text-red-500">{error}</div>;
-  if (!project) return <div className="text-center p-8 text-stone-500">Classroom not found.</div>;
+  if (!project) return <div className="text-center p-8 text-stone-500">{t.classroomNotFound}</div>;
 
   const publishedSegments = (project.segments || []).filter(s => !!s.isPublished);
   const allSegmentsCompleted = publishedSegments.every(s => segmentProgress[s.id!] === 'completed');
 
-  const pTitle = lang === 'zh' ? (project.titleZh || project.title) : lang === 'de' ? (project.titleDe || project.title) : project.title;
+  const pTitle = lang === 'de' ? (project.titleDe || project.title) : project.title;
 
   return (
     <>
@@ -156,10 +158,10 @@ export default function Classroom({ user }: { user: User }) {
             <div className="bg-gradient-to-br from-yellow-300 to-orange-500 rounded-3xl p-8 shadow-2xl border-4 border-white flex flex-col items-center gap-4">
               <span className="text-6xl drop-shadow-md">🪙</span>
               <div className="text-4xl font-black text-white drop-shadow-lg tracking-wider">
-                +1 BlockCoin!
+                {t.earnedCoin}
               </div>
               <div className="text-xl font-bold text-yellow-100 drop-shadow-sm">
-                Awesome job! You earned it!
+                {t.awesomeJob}
               </div>
             </div>
           </motion.div>
@@ -172,7 +174,7 @@ export default function Classroom({ user }: { user: User }) {
             onClick={() => navigate(`/building/${project.buildingId}`)}
             className="flex items-center gap-2 text-white hover:bg-orange-500 px-4 py-2 rounded-xl transition-colors font-bold"
           >
-            <ArrowLeft size={20} /> Back to Hallway
+            <ArrowLeft size={20} /> {t.backToHallway}
           </button>
           <h1 className="text-3xl font-extrabold text-white drop-shadow-md">{pTitle}</h1>
           <div className="w-24"></div>
@@ -208,15 +210,15 @@ export default function Classroom({ user }: { user: User }) {
           {project.scratchFileUrl && (
             <div className="bg-orange-50 p-6 rounded-2xl border-2 border-orange-200 mb-12 flex items-center justify-between">
               <div>
-                <h3 className="text-xl font-bold text-orange-800 mb-2">Project Files</h3>
-                <p className="text-stone-600">Download the starter project to begin coding.</p>
+                <h3 className="text-xl font-bold text-orange-800 mb-2">{t.projectFiles}</h3>
+                <p className="text-stone-600">{t.downloadStarter}</p>
               </div>
               <a
                 href={project.scratchFileUrl}
                 className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-xl font-bold shadow-md transition-transform active:scale-95"
                 download
               >
-                <Download size={24} /> Download .sb3
+                <Download size={24} /> {t.downloadSb3}
               </a>
             </div>
           )}
@@ -227,13 +229,11 @@ export default function Classroom({ user }: { user: User }) {
               const isSegLocked = !!seg.isLocked;
               const isSegCompleted = segmentProgress[segId] === 'completed';
               
-              const sTitle = lang === 'zh' ? (seg.titleZh || seg.title) : lang === 'de' ? (seg.titleDe || seg.title) : seg.title;
-              const sContent = lang === 'zh' ? (seg.contentZh || seg.content) : lang === 'de' ? (seg.contentDe || seg.content) : seg.content;
+              const sTitle = lang === 'de' ? (seg.titleDe || seg.title) : seg.title;
+              const sContent = lang === 'de' ? (seg.contentDe || seg.content) : seg.content;
 
               let segQuizzes = (Array.isArray(seg.quizzes) ? seg.quizzes : []) as Quiz[];
-              const maybeZh = Array.isArray(seg.quizzesZh) ? seg.quizzesZh : [];
               const maybeDe = Array.isArray(seg.quizzesDe) ? seg.quizzesDe : [];
-              if (lang === 'zh' && maybeZh.length > 0) segQuizzes = maybeZh as Quiz[];
               if (lang === 'de' && maybeDe.length > 0) segQuizzes = maybeDe as Quiz[];
 
               const isAllAnswered = checkSegmentAllAnswered(seg, segQuizzes);
@@ -245,7 +245,7 @@ export default function Classroom({ user }: { user: User }) {
                   <div key={segId} className="bg-stone-50 border-4 border-dashed border-stone-200 rounded-3xl p-12 flex flex-col items-center justify-center text-stone-500">
                     <Lock size={64} className="mb-6 opacity-20" />
                     <h3 className="text-3xl font-bold text-stone-400 mb-2">{sTitle || `Segment ${sIndex + 1}`}</h3>
-                    <p className="text-stone-400 text-lg font-medium tracking-wide">(Locked by Teacher)</p>
+                    <p className="text-stone-400 text-lg font-medium tracking-wide">{t.lockedByTeacher}</p>
                   </div>
                 );
               }
@@ -263,7 +263,7 @@ export default function Classroom({ user }: { user: User }) {
 
                   {segQuizzes.length > 0 && (
                     <div className="mb-8 p-8 rounded-3xl bg-orange-50/50 border-2 border-orange-100">
-                      <h3 className="text-2xl font-bold text-orange-800 mb-8 border-b-2 border-orange-200 pb-4 inline-block">Knowledge Check</h3>
+                      <h3 className="text-2xl font-bold text-orange-800 mb-8 border-b-2 border-orange-200 pb-4 inline-block">{t.knowledgeCheck}</h3>
                       <div className="space-y-8">
                         {segQuizzes.map((quiz, qIndex) => (
                           <div key={qIndex} className="bg-white p-8 rounded-2xl shadow-sm border border-stone-100">
@@ -335,7 +335,7 @@ export default function Classroom({ user }: { user: User }) {
                                 : 'bg-stone-200 text-stone-500 cursor-not-allowed opacity-70'
                               }`}
                           >
-                            Check Answers
+                            {t.checkAnswers}
                           </button>
                         </div>
                       )}
@@ -354,7 +354,7 @@ export default function Classroom({ user }: { user: User }) {
                         }`}
                     >
                       {isSegCompleted ? <CheckSquare size={24} /> : <Square size={24} />}
-                      {isSegCompleted ? 'Segment Completed' : 'Complete This Segment'}
+                      {isSegCompleted ? t.segmentCompleted : t.completeSegment}
                     </button>
                   </div>
                 </div>
@@ -362,13 +362,13 @@ export default function Classroom({ user }: { user: User }) {
             })}
 
             {publishedSegments.length === 0 && (
-              <div className="text-center p-12 text-stone-500 text-lg">No segments available for this lesson yet.</div>
+              <div className="text-center p-12 text-stone-500 text-lg">{t.noSegments}</div>
             )}
           </div>
 
           <div className="border-t-4 border-orange-100 mt-16 pt-12 flex flex-col items-center justify-center">
             <h3 className="text-2xl font-bold text-stone-700 mb-6 flex items-center gap-2">
-              <CheckSquare className="text-orange-500" /> Overall Lesson Progress
+              <CheckSquare className="text-orange-500" /> {t.overallProgress}
             </h3>
             <button
               onClick={handleCompleteProject}
@@ -381,10 +381,10 @@ export default function Classroom({ user }: { user: User }) {
                 }`}
             >
               {completed ? <CheckSquare size={36} /> : <Square size={36} />}
-              {completed ? 'Lesson Fully Completed!' : 'Mark Lesson as Completed'}
+              {completed ? t.fullyCompleted : t.markCompleted}
             </button>
             {!completed && !allSegmentsCompleted && publishedSegments.length > 0 && (
-              <p className="mt-4 text-stone-500 font-medium">Complete all segments to mark the lesson as completed.</p>
+              <p className="mt-4 text-stone-500 font-medium">{t.completeAllSegments}</p>
             )}
           </div>
         </div>

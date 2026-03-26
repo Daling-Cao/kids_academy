@@ -3,6 +3,7 @@ import { Plus, Edit2, Trash2, Lock, Unlock } from 'lucide-react';
 import ProjectEditor from '../components/ProjectEditor';
 import { authFetch } from '../App';
 import type { Project, Building, Quiz, ProjectSegment } from '../types';
+import { useI18n } from '../i18n';
 
 interface ProjectData {
     buildingId: number;
@@ -19,6 +20,7 @@ interface EditingProject extends ProjectData {
 }
 
 export default function ProjectsTab() {
+    const { t } = useI18n();
     const [projects, setProjects] = useState<Project[]>([]);
     const [buildings, setBuildings] = useState<Building[]>([]);
     const [showAddForm, setShowAddForm] = useState(false);
@@ -101,14 +103,14 @@ export default function ProjectsTab() {
                     onClick={() => setShowAddForm(!showAddForm)}
                     className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-xl font-bold shadow-md hover:bg-orange-600 transition-colors"
                 >
-                    <Plus size={20} /> Add New Project
+                    <Plus size={20} /> {t.addProject}
                 </button>
             </div>
 
             {showAddForm && (
                 <ProjectEditor
                     buildings={buildings}
-                    title="Create New Project"
+                    title={t.addProject}
                     project={newProject}
                     setProject={setNewProject}
                     onSubmit={handleAddProject}
@@ -119,7 +121,7 @@ export default function ProjectsTab() {
             {editingProject && (
                 <ProjectEditor
                     buildings={buildings}
-                    title="Edit Project"
+                    title={t.editProject}
                     project={editingProject}
                     setProject={(p) => setEditingProject({ ...p, id: editingProject.id })}
                     onSubmit={handleUpdateProject}
@@ -131,11 +133,11 @@ export default function ProjectsTab() {
                 <table className="w-full text-left border-collapse">
                     <thead>
                         <tr className="bg-orange-50 text-orange-800 border-b-2 border-orange-100">
-                            <th className="p-4 font-bold">Order</th>
-                            <th className="p-4 font-bold">Building</th>
-                            <th className="p-4 font-bold">Title</th>
-                            <th className="p-4 font-bold">Status</th>
-                            <th className="p-4 font-bold text-right">Actions</th>
+                            <th className="p-4 font-bold">{t.order}</th>
+                            <th className="p-4 font-bold">{t.building}</th>
+                            <th className="p-4 font-bold">{t.title}</th>
+                            <th className="p-4 font-bold">{t.status}</th>
+                            <th className="p-4 font-bold text-right">{t.actions}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -148,7 +150,7 @@ export default function ProjectsTab() {
                                     <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${project.isLocked ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
                                         }`}>
                                         {project.isLocked ? <Lock size={12} /> : <Unlock size={12} />}
-                                        {project.isLocked ? 'Locked' : 'Published'}
+                                        {project.isLocked ? t.locked : t.published}
                                     </span>
                                 </td>
                                 <td className="p-4 text-right flex justify-end gap-2">
@@ -158,7 +160,7 @@ export default function ProjectsTab() {
                                                 ? 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100'
                                                 : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
                                             }`}
-                                        title={project.isLocked ? "Unlock Project" : "Lock Project"}
+                                        title={project.isLocked ? t.unlockProject : t.lockProject}
                                     >
                                         {project.isLocked ? <Unlock size={18} /> : <Lock size={18} />}
                                     </button>
@@ -177,14 +179,14 @@ export default function ProjectsTab() {
                                             setShowAddForm(false);
                                         }}
                                         className="p-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors shadow-sm"
-                                        title="Edit Project"
+                                        title={t.editProject}
                                     >
                                         <Edit2 size={18} />
                                     </button>
                                     <button
                                         onClick={() => handleDeleteProject(project.id)}
                                         className="p-2 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-colors shadow-sm"
-                                        title="Delete Project"
+                                        title={t.deleteProject}
                                     >
                                         <Trash2 size={18} />
                                     </button>
@@ -194,7 +196,7 @@ export default function ProjectsTab() {
                         {projects.length === 0 && (
                             <tr>
                                 <td colSpan={5} className="p-8 text-center text-stone-400">
-                                    No projects found. Add one to get started!
+                                    {t.noData}
                                 </td>
                             </tr>
                         )}
