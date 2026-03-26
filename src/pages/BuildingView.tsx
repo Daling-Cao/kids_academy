@@ -13,6 +13,7 @@ export default function BuildingView({ user }: { user: User }) {
   const [building, setBuilding] = useState<Building | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -64,6 +65,11 @@ export default function BuildingView({ user }: { user: User }) {
   if (error) return <div className="text-center p-8 text-red-500">{error}</div>;
   if (!building) return <div className="text-center p-8 text-stone-500">{t.notFoundBuilding}</div>;
 
+  const allTags = Array.from(new Set(projects.flatMap(p => p.tags || []))).sort();
+  const displayedProjects = selectedTag 
+    ? projects.filter(p => (p.tags || []).includes(selectedTag))
+    : projects;
+
   return (
     <div className="max-w-7xl mx-auto">
       <div className="flex items-center mb-8">
@@ -80,18 +86,57 @@ export default function BuildingView({ user }: { user: User }) {
       </h1>
       <p className="text-center text-stone-600 mb-12 max-w-2xl mx-auto">{building.description}</p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8 justify-items-center">
-        {projects.map((project, index) => (
-          <Door
-            key={project.id}
-            project={project}
-            index={index}
-            onClick={() => handleDoorClick(project)}
-          />
-        ))}
-        {projects.length === 0 && (
-          <div className="col-span-full text-center text-stone-500 py-12">
-            {t.noClassrooms}
+      <div className="flex flex-col md:flex-row gap-8">
+        {/* Main Content: Projects Grid */}
+        <div className="flex-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 justify-items-center">
+            {displayedProjects.map((project, index) => (
+              <Door
+                key={project.id}
+                project={project}
+                index={index}
+                onClick={() => handleDoorClick(project)}
+              />
+            ))}
+            {displayedProjects.length === 0 && (
+              <div className="col-span-full text-center text-stone-500 py-12">
+                {selectedTag ? `No projects found for tag "${selectedTag}"` : t.noClassrooms}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Sidebar: Tags */}
+        {allTags.length > 0 && (
+          <div className="w-full md:w-64 shrink-0">
+            <div className="bg-white p-6 rounded-2xl shadow-lg border-2 border-orange-100 sticky top-8">
+              <h2 className="text-xl font-bold text-orange-800 mb-4 flex items-center gap-2">
+                🏷️ Tags
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {allTags.map(tag => (
+                  <button
+                    key={tag}
+                    onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-bold transition-all ${
+                      selectedTag === tag
+                        ? 'bg-orange-500 text-white shadow-md transform scale-105'
+                        : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+              {selectedTag && (
+                <button
+                  onClick={() => setSelectedTag(null)}
+                  className="mt-4 w-full px-4 py-2 text-sm font-bold text-stone-500 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-colors"
+                >
+                  Clear filter
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

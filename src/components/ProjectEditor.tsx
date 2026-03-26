@@ -26,6 +26,7 @@ interface ProjectData {
     scratchFileUrl: string;
     scratchProjectId: string;
     coverImage: string;
+    tags?: string[];
     segments: ProjectSegment[];
 }
 
@@ -40,11 +41,31 @@ interface ProjectEditorProps {
 
 export default function ProjectEditor({ project, setProject, onSubmit, onCancel, title, buildings }: ProjectEditorProps) {
     const [lang, setLang] = useState<'zh'|'de'>('zh');
+    const [tagInput, setTagInput] = useState('');
 
     const tField = lang === 'zh' ? 'title' : 'titleDe';
     const dField = lang === 'zh' ? 'description' : 'descriptionDe';
     const cField = lang === 'zh' ? 'content' : 'contentDe';
     const qField = lang === 'zh' ? 'quizzes' : 'quizzesDe';
+
+    const handleAddTag = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter' && tagInput.trim()) {
+            e.preventDefault();
+            const newTag = tagInput.trim();
+            const currentTags = project.tags || [];
+            if (!currentTags.includes(newTag)) {
+                setProject({ ...project, tags: [...currentTags, newTag] });
+            }
+            setTagInput('');
+        }
+    };
+
+    const handleRemoveTag = (tagToRemove: string) => {
+        setProject({
+            ...project,
+            tags: (project.tags || []).filter(tag => tag !== tagToRemove)
+        });
+    };
 
     const handleAddSegment = () => {
         setProject({
@@ -158,6 +179,28 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                         className="w-full px-4 py-2 rounded-xl border-2 border-orange-100 focus:border-orange-400 focus:outline-none bg-orange-50/30"
                         rows={2}
                         required={lang === 'zh'}
+                    />
+                </div>
+
+                <div className="mt-4">
+                    <label className="block text-sm font-medium text-stone-600 mb-1">Tags (Press Enter to add)</label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                        {(project.tags || []).map((tag, index) => (
+                            <span key={index} className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm font-bold flex items-center gap-1 shadow-sm">
+                                {tag}
+                                <button type="button" onClick={() => handleRemoveTag(tag)} className="text-orange-500 hover:text-orange-800 focus:outline-none">
+                                    &times;
+                                </button>
+                            </span>
+                        ))}
+                    </div>
+                    <input
+                        type="text"
+                        value={tagInput}
+                        onChange={(e) => setTagInput(e.target.value)}
+                        onKeyDown={handleAddTag}
+                        placeholder="Type a tag and press Enter"
+                        className="w-full px-4 py-2 rounded-xl border-2 border-orange-100 focus:border-orange-400 focus:outline-none"
                     />
                 </div>
 

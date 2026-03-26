@@ -46,6 +46,7 @@ db.exec(`
     isLocked BOOLEAN DEFAULT 1,
     orderIndex INTEGER NOT NULL,
     quizzes TEXT DEFAULT '[]',
+    tags TEXT DEFAULT '[]',
     FOREIGN KEY (buildingId) REFERENCES buildings(id) ON DELETE CASCADE
   );
 
@@ -150,9 +151,16 @@ if (!hasCoinsColumn) {
   db.exec('ALTER TABLE users ADD COLUMN coins INTEGER NOT NULL DEFAULT 0;');
 }
 
-// Migrate projects table: add multi-lang columns
+// Migrate projects table: add tags and multi-lang columns
 const projectsInfo = db.pragma('table_info(projects)') as any[];
 if (projectsInfo.length > 0) {
+  const hasTagsColumn = projectsInfo.some(col => col.name === 'tags');
+  if (!hasTagsColumn) {
+    db.exec(`
+      ALTER TABLE projects ADD COLUMN tags TEXT DEFAULT '[]';
+    `);
+  }
+
   const hasTitleZh = projectsInfo.some(col => col.name === 'titleZh');
   if (!hasTitleZh) {
     db.exec(`

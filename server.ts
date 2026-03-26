@@ -310,6 +310,7 @@ async function startServer() {
     let previousCompleted = true;
 
     const result = projects.map((p) => {
+      try { p.tags = JSON.parse(p.tags); } catch { p.tags = []; }
       const prog = progress.find(pr => pr.projectId === p.id);
       let state = 'locked';
 
@@ -376,6 +377,7 @@ async function startServer() {
   app.get('/api/projects/:id', authMiddleware, (req: AuthRequest, res: Response) => {
     const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id) as any;
     if (project) {
+      try { project.tags = JSON.parse(project.tags); } catch { project.tags = []; }
       const segments = db.prepare('SELECT * FROM project_segments WHERE projectId = ? ORDER BY orderIndex ASC').all(project.id) as any[];
       segments.forEach(seg => {
          try { seg.quizzes = JSON.parse(seg.quizzes); } catch { seg.quizzes = []; }
@@ -610,6 +612,7 @@ async function startServer() {
     }, {});
 
     projects.forEach(p => {
+      try { p.tags = JSON.parse(p.tags); } catch { p.tags = []; }
       p.segments = segmentsByProject[p.id] || [];
     });
 
@@ -626,12 +629,12 @@ async function startServer() {
 
   // Add new project
   app.post('/api/projects', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
-    const { buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, segments } = req.body;
+    const { buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, tags, segments } = req.body;
     const maxOrder = db.prepare('SELECT MAX(orderIndex) as max FROM projects WHERE buildingId = ?').get(buildingId) as { max: number };
     const orderIndex = (maxOrder.max || 0) + 1;
 
-    const result = db.prepare('INSERT INTO projects (buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, isLocked, orderIndex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, 1, orderIndex);
+    const result = db.prepare('INSERT INTO projects (buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, isLocked, orderIndex, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, 1, orderIndex, JSON.stringify(tags || []));
 
     const projectId = result.lastInsertRowid;
 
@@ -660,10 +663,10 @@ async function startServer() {
   // Update project
   app.put('/api/projects/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
     const { id } = req.params;
-    const { buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, segments } = req.body;
+    const { buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, tags, segments } = req.body;
 
-    db.prepare('UPDATE projects SET buildingId = ?, title = ?, titleZh = ?, titleDe = ?, description = ?, descriptionZh = ?, descriptionDe = ?, scratchFileUrl = ?, scratchProjectId = ?, coverImage = ? WHERE id = ?')
-      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, id);
+    db.prepare('UPDATE projects SET buildingId = ?, title = ?, titleZh = ?, titleDe = ?, description = ?, descriptionZh = ?, descriptionDe = ?, scratchFileUrl = ?, scratchProjectId = ?, coverImage = ?, tags = ? WHERE id = ?')
+      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, JSON.stringify(tags || []), id);
 
     if (Array.isArray(segments)) {
       const existingSegs = (db.prepare('SELECT id FROM project_segments WHERE projectId = ?').all(id) as any[]).map(s => s.id);

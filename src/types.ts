@@ -53,6 +53,7 @@ export interface Project {
     orderIndex: number;
     segments?: ProjectSegment[];
     buildingName?: string;
+    tags?: string[];
     // Legacy fields for backward compatibility
     content?: string;
     quizzes?: Quiz[] | string;

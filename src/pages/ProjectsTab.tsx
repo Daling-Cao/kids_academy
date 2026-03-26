@@ -12,6 +12,7 @@ interface ProjectData {
     scratchFileUrl: string;
     scratchProjectId: string;
     coverImage: string;
+    tags: string[];
     segments: ProjectSegment[];
 }
 
@@ -32,6 +33,7 @@ export default function ProjectsTab() {
         scratchFileUrl: '',
         scratchProjectId: '',
         coverImage: '',
+        tags: [],
         segments: []
     });
 
@@ -66,7 +68,7 @@ export default function ProjectsTab() {
             body: JSON.stringify(newProject)
         });
         setShowAddForm(false);
-        setNewProject({ buildingId: buildings[0]?.id || 1, title: '', description: '', scratchFileUrl: '', scratchProjectId: '', coverImage: '', segments: [] });
+        setNewProject({ buildingId: buildings[0]?.id || 1, title: '', description: '', scratchFileUrl: '', scratchProjectId: '', coverImage: '', tags: [], segments: [] });
         fetchProjects();
     };
 
@@ -174,6 +176,7 @@ export default function ProjectsTab() {
                                                 scratchFileUrl: project.scratchFileUrl,
                                                 scratchProjectId: project.scratchProjectId,
                                                 coverImage: project.coverImage,
+                                                tags: project.tags || [],
                                                 segments: project.segments || [],
                                             });
                                             setShowAddForm(false);
