@@ -379,6 +379,8 @@ async function startServer() {
       const segments = db.prepare('SELECT * FROM project_segments WHERE projectId = ? ORDER BY orderIndex ASC').all(project.id) as any[];
       segments.forEach(seg => {
          try { seg.quizzes = JSON.parse(seg.quizzes); } catch { seg.quizzes = []; }
+         try { seg.quizzesZh = JSON.parse(seg.quizzesZh); } catch { seg.quizzesZh = []; }
+         try { seg.quizzesDe = JSON.parse(seg.quizzesDe); } catch { seg.quizzesDe = []; }
          seg.isPublished = !!seg.isPublished;
          seg.isLocked = !!seg.isLocked;
       });
@@ -599,6 +601,8 @@ async function startServer() {
     const segmentsByProject = segments.reduce((acc: any, seg: any) => {
       if (!acc[seg.projectId]) acc[seg.projectId] = [];
       try { seg.quizzes = JSON.parse(seg.quizzes); } catch { seg.quizzes = []; }
+      try { seg.quizzesZh = JSON.parse(seg.quizzesZh); } catch { seg.quizzesZh = []; }
+      try { seg.quizzesDe = JSON.parse(seg.quizzesDe); } catch { seg.quizzesDe = []; }
       seg.isPublished = !!seg.isPublished;
       seg.isLocked = !!seg.isLocked;
       acc[seg.projectId].push(seg);
@@ -622,22 +626,31 @@ async function startServer() {
 
   // Add new project
   app.post('/api/projects', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
-    const { buildingId, title, description, scratchFileUrl, scratchProjectId, coverImage, segments } = req.body;
+    const { buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, segments } = req.body;
     const maxOrder = db.prepare('SELECT MAX(orderIndex) as max FROM projects WHERE buildingId = ?').get(buildingId) as { max: number };
     const orderIndex = (maxOrder.max || 0) + 1;
 
-    const result = db.prepare('INSERT INTO projects (buildingId, title, description, scratchFileUrl, scratchProjectId, coverImage, isLocked, orderIndex) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(buildingId, title, description, scratchFileUrl, scratchProjectId, coverImage, 1, orderIndex);
+    const result = db.prepare('INSERT INTO projects (buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, isLocked, orderIndex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, 1, orderIndex);
 
     const projectId = result.lastInsertRowid;
 
     if (Array.isArray(segments)) {
-      const insertSegment = db.prepare('INSERT INTO project_segments (projectId, title, content, quizzes, isPublished, isLocked, orderIndex) VALUES (?, ?, ?, ?, ?, ?, ?)');
+      const insertSegment = db.prepare('INSERT INTO project_segments (projectId, title, titleZh, titleDe, content, contentZh, contentDe, quizzes, quizzesZh, quizzesDe, isPublished, isLocked, orderIndex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
       segments.forEach((seg: any, index: number) => {
         const sanitizedContent = sanitizeHtml(seg.content || '');
-        const sanitizedQuizzes = (seg.quizzes || []).map((q: any) => ({ ...q, question: sanitizeHtml(q.question || '') }));
-        const quizzesJson = JSON.stringify(sanitizedQuizzes);
-        insertSegment.run(projectId, seg.title || '', sanitizedContent, quizzesJson, seg.isPublished ? 1 : 0, seg.isLocked ? 1 : 0, index + 1);
+        const sanitizedContentZh = sanitizeHtml(seg.contentZh || '');
+        const sanitizedContentDe = sanitizeHtml(seg.contentDe || '');
+        
+        const sanitizeQs = (qs: any) => JSON.stringify((qs || []).map((q: any) => ({ ...q, question: sanitizeHtml(q.question || '') })));
+
+        insertSegment.run(
+          projectId, 
+          seg.title || '', seg.titleZh || '', seg.titleDe || '', 
+          sanitizedContent, sanitizedContentZh, sanitizedContentDe, 
+          sanitizeQs(seg.quizzes), sanitizeQs(seg.quizzesZh), sanitizeQs(seg.quizzesDe),
+          seg.isPublished ? 1 : 0, seg.isLocked ? 1 : 0, index + 1
+        );
       });
     }
 
@@ -647,10 +660,10 @@ async function startServer() {
   // Update project
   app.put('/api/projects/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
     const { id } = req.params;
-    const { buildingId, title, description, scratchFileUrl, scratchProjectId, coverImage, segments } = req.body;
+    const { buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, segments } = req.body;
 
-    db.prepare('UPDATE projects SET buildingId = ?, title = ?, description = ?, scratchFileUrl = ?, scratchProjectId = ?, coverImage = ? WHERE id = ?')
-      .run(buildingId, title, description, scratchFileUrl, scratchProjectId, coverImage, id);
+    db.prepare('UPDATE projects SET buildingId = ?, title = ?, titleZh = ?, titleDe = ?, description = ?, descriptionZh = ?, descriptionDe = ?, scratchFileUrl = ?, scratchProjectId = ?, coverImage = ? WHERE id = ?')
+      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, id);
 
     if (Array.isArray(segments)) {
       const existingSegs = (db.prepare('SELECT id FROM project_segments WHERE projectId = ?').all(id) as any[]).map(s => s.id);
@@ -661,18 +674,31 @@ async function startServer() {
         db.prepare(`DELETE FROM project_segments WHERE id IN (${toDelete.map(() => '?').join(',')})`).run(...toDelete);
       }
 
-      const insertSegment = db.prepare('INSERT INTO project_segments (projectId, title, content, quizzes, isPublished, isLocked, orderIndex) VALUES (?, ?, ?, ?, ?, ?, ?)');
-      const updateSegment = db.prepare('UPDATE project_segments SET title = ?, content = ?, quizzes = ?, isPublished = ?, isLocked = ?, orderIndex = ? WHERE id = ?');
+      const insertSegment = db.prepare('INSERT INTO project_segments (projectId, title, titleZh, titleDe, content, contentZh, contentDe, quizzes, quizzesZh, quizzesDe, isPublished, isLocked, orderIndex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+      const updateSegment = db.prepare('UPDATE project_segments SET title = ?, titleZh = ?, titleDe = ?, content = ?, contentZh = ?, contentDe = ?, quizzes = ?, quizzesZh = ?, quizzesDe = ?, isPublished = ?, isLocked = ?, orderIndex = ? WHERE id = ?');
 
       segments.forEach((seg: any, index: number) => {
         const sanitizedContent = sanitizeHtml(seg.content || '');
-        const sanitizedQuizzes = (seg.quizzes || []).map((q: any) => ({ ...q, question: sanitizeHtml(q.question || '') }));
-        const quizzesJson = JSON.stringify(sanitizedQuizzes);
+        const sanitizedContentZh = sanitizeHtml(seg.contentZh || '');
+        const sanitizedContentDe = sanitizeHtml(seg.contentDe || '');
         
+        const sanitizeQs = (qs: any) => JSON.stringify((qs || []).map((q: any) => ({ ...q, question: sanitizeHtml(q.question || '') })));
+
         if (seg.id && existingSegs.includes(seg.id)) {
-          updateSegment.run(seg.title || '', sanitizedContent, quizzesJson, seg.isPublished ? 1 : 0, seg.isLocked ? 1 : 0, index + 1, seg.id);
+          updateSegment.run(
+             seg.title || '', seg.titleZh || '', seg.titleDe || '', 
+             sanitizedContent, sanitizedContentZh, sanitizedContentDe, 
+             sanitizeQs(seg.quizzes), sanitizeQs(seg.quizzesZh), sanitizeQs(seg.quizzesDe),
+             seg.isPublished ? 1 : 0, seg.isLocked ? 1 : 0, index + 1, seg.id
+          );
         } else {
-          insertSegment.run(id, seg.title || '', sanitizedContent, quizzesJson, seg.isPublished ? 1 : 0, seg.isLocked ? 1 : 0, index + 1);
+          insertSegment.run(
+             id, 
+             seg.title || '', seg.titleZh || '', seg.titleDe || '', 
+             sanitizedContent, sanitizedContentZh, sanitizedContentDe, 
+             sanitizeQs(seg.quizzes), sanitizeQs(seg.quizzesZh), sanitizeQs(seg.quizzesDe),
+             seg.isPublished ? 1 : 0, seg.isLocked ? 1 : 0, index + 1
+          );
         }
       });
     }

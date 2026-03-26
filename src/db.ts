@@ -34,7 +34,11 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     buildingId INTEGER NOT NULL DEFAULT 1,
     title TEXT NOT NULL,
+    titleZh TEXT,
+    titleDe TEXT,
     description TEXT,
+    descriptionZh TEXT,
+    descriptionDe TEXT,
     content TEXT,
     scratchFileUrl TEXT,
     scratchProjectId TEXT,
@@ -58,8 +62,14 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     projectId INTEGER NOT NULL,
     title TEXT,
+    titleZh TEXT,
+    titleDe TEXT,
     content TEXT,
+    contentZh TEXT,
+    contentDe TEXT,
     quizzes TEXT DEFAULT '[]',
+    quizzesZh TEXT DEFAULT '[]',
+    quizzesDe TEXT DEFAULT '[]',
     isPublished INTEGER NOT NULL DEFAULT 1,
     isLocked INTEGER NOT NULL DEFAULT 0,
     orderIndex INTEGER NOT NULL,
@@ -138,6 +148,36 @@ if (messagesInfo.length > 0) {
 const hasCoinsColumn = tableInfo.some(col => col.name === 'coins');
 if (!hasCoinsColumn) {
   db.exec('ALTER TABLE users ADD COLUMN coins INTEGER NOT NULL DEFAULT 0;');
+}
+
+// Migrate projects table: add multi-lang columns
+const projectsInfo = db.pragma('table_info(projects)') as any[];
+if (projectsInfo.length > 0) {
+  const hasTitleZh = projectsInfo.some(col => col.name === 'titleZh');
+  if (!hasTitleZh) {
+    db.exec(`
+      ALTER TABLE projects ADD COLUMN titleZh TEXT;
+      ALTER TABLE projects ADD COLUMN titleDe TEXT;
+      ALTER TABLE projects ADD COLUMN descriptionZh TEXT;
+      ALTER TABLE projects ADD COLUMN descriptionDe TEXT;
+    `);
+  }
+}
+
+// Migrate project_segments table: add multi-lang columns
+const segmentsInfo = db.pragma('table_info(project_segments)') as any[];
+if (segmentsInfo.length > 0) {
+  const hasContentZh = segmentsInfo.some(col => col.name === 'contentZh');
+  if (!hasContentZh) {
+    db.exec(`
+      ALTER TABLE project_segments ADD COLUMN titleZh TEXT;
+      ALTER TABLE project_segments ADD COLUMN titleDe TEXT;
+      ALTER TABLE project_segments ADD COLUMN contentZh TEXT;
+      ALTER TABLE project_segments ADD COLUMN contentDe TEXT;
+      ALTER TABLE project_segments ADD COLUMN quizzesZh TEXT DEFAULT '[]';
+      ALTER TABLE project_segments ADD COLUMN quizzesDe TEXT DEFAULT '[]';
+    `);
+  }
 }
 
 // Migrate projects content to segments

@@ -24,8 +24,14 @@ export interface ProjectSegment {
     id?: number;
     projectId?: number;
     title?: string;
+    titleZh?: string;
+    titleDe?: string;
     content: string;
+    contentZh?: string;
+    contentDe?: string;
     quizzes: Quiz[] | string;
+    quizzesZh?: Quiz[] | string;
+    quizzesDe?: Quiz[] | string;
     isPublished: boolean | number;
     isLocked: boolean | number;
     orderIndex: number;
@@ -35,7 +41,11 @@ export interface Project {
     id: number;
     buildingId: number;
     title: string;
+    titleZh?: string;
+    titleDe?: string;
     description: string;
+    descriptionZh?: string;
+    descriptionDe?: string;
     scratchFileUrl: string;
     scratchProjectId: string;
     coverImage: string;

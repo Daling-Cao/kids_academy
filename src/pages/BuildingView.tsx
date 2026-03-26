@@ -29,7 +29,14 @@ export default function BuildingView({ user }: { user: User }) {
     ])
       .then(([buildingData, projectsData]) => {
         setBuilding(buildingData);
-        setProjects(projectsData);
+        
+        const lang = navigator.language.toLowerCase().startsWith('zh') ? 'zh' : navigator.language.toLowerCase().startsWith('de') ? 'de' : 'en';
+        const localizedProjects = projectsData.map((p: any) => ({
+          ...p,
+          title: lang === 'zh' ? (p.titleZh || p.title) : lang === 'de' ? (p.titleDe || p.title) : p.title
+        }));
+        
+        setProjects(localizedProjects);
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));

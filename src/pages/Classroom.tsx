@@ -20,6 +20,8 @@ export default function Classroom({ user }: { user: User }) {
   const [showCoinAnimation, setShowCoinAnimation] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
+  const lang = navigator.language.toLowerCase().startsWith('zh') ? 'zh' : navigator.language.toLowerCase().startsWith('de') ? 'de' : 'en';
+
   useEffect(() => {
     setLoading(true);
     setError('');
@@ -103,10 +105,10 @@ export default function Classroom({ user }: { user: User }) {
     setSegmentShowResults(prev => ({ ...prev, [segmentId]: false }));
   };
 
-  const checkSegmentAllAnswered = (segment: any) => {
-    if (!segment.quizzes || segment.quizzes.length === 0) return true;
+  const checkSegmentAllAnswered = (segment: any, activeQuizzes: Quiz[]) => {
+    if (!activeQuizzes || activeQuizzes.length === 0) return true;
     const segAns = segmentAnswers[segment.id] || {};
-    return segment.quizzes.every((_: any, i: number) => {
+    return activeQuizzes.every((_: any, i: number) => {
       const ans = segAns[i];
       if (ans === undefined) return false;
       if (Array.isArray(ans)) return ans.length > 0;
@@ -114,10 +116,10 @@ export default function Classroom({ user }: { user: User }) {
     });
   };
 
-  const checkSegmentAllCorrect = (segment: any) => {
-    if (!segment.quizzes || segment.quizzes.length === 0) return true;
+  const checkSegmentAllCorrect = (segment: any, activeQuizzes: Quiz[]) => {
+    if (!activeQuizzes || activeQuizzes.length === 0) return true;
     const segAns = segmentAnswers[segment.id] || {};
-    return checkSegmentAllAnswered(segment) && segment.quizzes.every((q: any, i: number) => {
+    return checkSegmentAllAnswered(segment, activeQuizzes) && activeQuizzes.every((q: any, i: number) => {
       const ans = segAns[i];
       const correctIndices = q.correctOptionIndices || [q.correctOptionIndex ?? 0];
       if (Array.isArray(ans)) {
@@ -129,7 +131,6 @@ export default function Classroom({ user }: { user: User }) {
     });
   };
 
-  // Sanitize HTML before rendering
   const sanitize = (html: string) => DOMPurify.sanitize(html);
 
   if (loading) return <div className="text-center p-8 text-stone-500">Loading classroom...</div>;
@@ -139,9 +140,10 @@ export default function Classroom({ user }: { user: User }) {
   const publishedSegments = (project.segments || []).filter(s => !!s.isPublished);
   const allSegmentsCompleted = publishedSegments.every(s => segmentProgress[s.id!] === 'completed');
 
+  const pTitle = lang === 'zh' ? (project.titleZh || project.title) : lang === 'de' ? (project.titleDe || project.title) : project.title;
+
   return (
     <>
-      {/* ─── Coin Celebration Animation ─── */}
       <AnimatePresence>
         {showCoinAnimation && (
           <motion.div
@@ -172,7 +174,7 @@ export default function Classroom({ user }: { user: User }) {
           >
             <ArrowLeft size={20} /> Back to Hallway
           </button>
-          <h1 className="text-3xl font-extrabold text-white drop-shadow-md">{project.title}</h1>
+          <h1 className="text-3xl font-extrabold text-white drop-shadow-md">{pTitle}</h1>
           <div className="w-24"></div>
         </div>
 
@@ -180,7 +182,7 @@ export default function Classroom({ user }: { user: User }) {
           {project.coverImage && (
             <img
               src={project.coverImage}
-              alt={project.title}
+              alt={pTitle}
               className="w-full h-64 object-cover rounded-2xl mb-8 shadow-md border-2 border-orange-50"
               referrerPolicy="no-referrer"
             />
@@ -224,16 +226,25 @@ export default function Classroom({ user }: { user: User }) {
               const segId = seg.id!;
               const isSegLocked = !!seg.isLocked;
               const isSegCompleted = segmentProgress[segId] === 'completed';
-              const segQuizzes = (Array.isArray(seg.quizzes) ? seg.quizzes : []) as Quiz[];
-              const isAllAnswered = checkSegmentAllAnswered(seg);
-              const isAllCorrect = checkSegmentAllCorrect(seg);
+              
+              const sTitle = lang === 'zh' ? (seg.titleZh || seg.title) : lang === 'de' ? (seg.titleDe || seg.title) : seg.title;
+              const sContent = lang === 'zh' ? (seg.contentZh || seg.content) : lang === 'de' ? (seg.contentDe || seg.content) : seg.content;
+
+              let segQuizzes = (Array.isArray(seg.quizzes) ? seg.quizzes : []) as Quiz[];
+              const maybeZh = Array.isArray(seg.quizzesZh) ? seg.quizzesZh : [];
+              const maybeDe = Array.isArray(seg.quizzesDe) ? seg.quizzesDe : [];
+              if (lang === 'zh' && maybeZh.length > 0) segQuizzes = maybeZh as Quiz[];
+              if (lang === 'de' && maybeDe.length > 0) segQuizzes = maybeDe as Quiz[];
+
+              const isAllAnswered = checkSegmentAllAnswered(seg, segQuizzes);
+              const isAllCorrect = checkSegmentAllCorrect(seg, segQuizzes);
               const showResults = segmentShowResults[segId] || false;
 
               if (isSegLocked) {
                 return (
                   <div key={segId} className="bg-stone-50 border-4 border-dashed border-stone-200 rounded-3xl p-12 flex flex-col items-center justify-center text-stone-500">
                     <Lock size={64} className="mb-6 opacity-20" />
-                    <h3 className="text-3xl font-bold text-stone-400 mb-2">{seg.title || `Segment ${sIndex + 1}`}</h3>
+                    <h3 className="text-3xl font-bold text-stone-400 mb-2">{sTitle || `Segment ${sIndex + 1}`}</h3>
                     <p className="text-stone-400 text-lg font-medium tracking-wide">(Locked by Teacher)</p>
                   </div>
                 );
@@ -241,12 +252,12 @@ export default function Classroom({ user }: { user: User }) {
 
               return (
                 <div key={segId} className="bg-white rounded-3xl border border-stone-100 shadow-sm p-8">
-                  {seg.title && <h2 className="text-3xl font-bold text-orange-800 mb-8 pb-4 border-b border-orange-100">{seg.title}</h2>}
+                  {sTitle && <h2 className="text-3xl font-bold text-orange-800 mb-8 pb-4 border-b border-orange-100">{sTitle}</h2>}
                   
-                  {seg.content && (
+                  {sContent && (
                     <div
                       className="prose prose-orange max-w-none mb-12 text-stone-700 leading-relaxed text-lg select-text"
-                      dangerouslySetInnerHTML={{ __html: sanitize(seg.content) }}
+                      dangerouslySetInnerHTML={{ __html: sanitize(sContent) }}
                     />
                   )}
 
