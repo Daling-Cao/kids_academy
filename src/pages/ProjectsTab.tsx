@@ -2,17 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Lock, Unlock } from 'lucide-react';
 import ProjectEditor from '../components/ProjectEditor';
 import { authFetch } from '../App';
-import type { Project, Building, Quiz } from '../types';
+import type { Project, Building, Quiz, ProjectSegment } from '../types';
 
 interface ProjectData {
     buildingId: number;
     title: string;
     description: string;
-    content: string;
     scratchFileUrl: string;
     scratchProjectId: string;
     coverImage: string;
-    quizzes: Quiz[];
+    segments: ProjectSegment[];
 }
 
 interface EditingProject extends ProjectData {
@@ -28,11 +27,10 @@ export default function ProjectsTab() {
         buildingId: 1,
         title: '',
         description: '',
-        content: '',
         scratchFileUrl: '',
         scratchProjectId: '',
         coverImage: '',
-        quizzes: []
+        segments: []
     });
 
     useEffect(() => {
@@ -66,7 +64,7 @@ export default function ProjectsTab() {
             body: JSON.stringify(newProject)
         });
         setShowAddForm(false);
-        setNewProject({ buildingId: buildings[0]?.id || 1, title: '', description: '', content: '', scratchFileUrl: '', scratchProjectId: '', coverImage: '', quizzes: [] });
+        setNewProject({ buildingId: buildings[0]?.id || 1, title: '', description: '', scratchFileUrl: '', scratchProjectId: '', coverImage: '', segments: [] });
         fetchProjects();
     };
 
@@ -166,19 +164,15 @@ export default function ProjectsTab() {
                                     </button>
                                     <button
                                         onClick={() => {
-                                            const quizzes = typeof project.quizzes === 'string'
-                                                ? JSON.parse(project.quizzes)
-                                                : (project.quizzes || []);
                                             setEditingProject({
                                                 id: project.id,
                                                 buildingId: project.buildingId,
                                                 title: project.title,
                                                 description: project.description,
-                                                content: project.content,
                                                 scratchFileUrl: project.scratchFileUrl,
                                                 scratchProjectId: project.scratchProjectId,
                                                 coverImage: project.coverImage,
-                                                quizzes,
+                                                segments: project.segments || [],
                                             });
                                             setShowAddForm(false);
                                         }}

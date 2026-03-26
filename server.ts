@@ -374,8 +374,15 @@ async function startServer() {
 
   // Get single project
   app.get('/api/projects/:id', authMiddleware, (req: AuthRequest, res: Response) => {
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id) as any;
     if (project) {
+      const segments = db.prepare('SELECT * FROM project_segments WHERE projectId = ? ORDER BY orderIndex ASC').all(project.id) as any[];
+      segments.forEach(seg => {
+         try { seg.quizzes = JSON.parse(seg.quizzes); } catch { seg.quizzes = []; }
+         seg.isPublished = !!seg.isPublished;
+         seg.isLocked = !!seg.isLocked;
+      });
+      project.segments = segments;
       res.json(project);
     } else {
       res.status(404).json({ error: 'Not found' });
@@ -385,8 +392,44 @@ async function startServer() {
   // Get single project progress
   app.get('/api/student/projects/:projectId/progress/:userId', authMiddleware, studentSelfOnly, (req: AuthRequest, res: Response) => {
     const { projectId, userId } = req.params;
-    const prog = db.prepare('SELECT * FROM user_progress WHERE userId = ? AND projectId = ?').get(userId, projectId);
-    res.json(prog || { state: 'locked' });
+    const prog = db.prepare('SELECT * FROM user_progress WHERE userId = ? AND projectId = ?').get(userId, projectId) as any;
+    
+    const segmentProgress = db.prepare(`
+      SELECT usp.segmentId, usp.state 
+      FROM user_segment_progress usp 
+      JOIN project_segments ps ON usp.segmentId = ps.id 
+      WHERE usp.userId = ? AND ps.projectId = ?
+    `).all(userId, projectId) as any[];
+    
+    res.json({
+      ...(prog || { state: 'locked' }),
+      segmentProgress: segmentProgress.reduce((acc: any, p: any) => { acc[p.segmentId] = p.state; return acc; }, {})
+    });
+  });
+
+  // Complete a segment (Student) — awards 1 BlockCoin
+  app.post('/api/student/segments/:segmentId/complete', authMiddleware, studentSelfOnly, (req: AuthRequest, res: Response) => {
+    const { segmentId } = req.params;
+    const { userId } = req.body;
+
+    const existing = db.prepare('SELECT * FROM user_segment_progress WHERE userId = ? AND segmentId = ?').get(userId, segmentId) as any;
+    if (!existing) {
+      db.prepare('INSERT INTO user_segment_progress (userId, segmentId, state) VALUES (?, ?, ?)').run(userId, segmentId, 'completed');
+    }
+
+    let coinAwarded = false;
+    const alreadyAwarded = db.prepare(
+      'SELECT id FROM coin_transactions WHERE userId = ? AND refType = ? AND refId = ?'
+    ).get(userId, 'segment_complete', String(segmentId));
+    
+    if (!alreadyAwarded) {
+      db.prepare('INSERT INTO coin_transactions (userId, amount, reason, refType, refId) VALUES (?, ?, ?, ?, ?)')
+        .run(userId, 1, 'Completed a learning segment', 'segment_complete', String(segmentId));
+      db.prepare('UPDATE users SET coins = coins + 1 WHERE id = ?').run(userId);
+      coinAwarded = true;
+    }
+
+    res.json({ success: true, coinAwarded });
   });
 
   // ─── Teacher Routes (authenticated + teacher only) ───────────────
@@ -550,7 +593,22 @@ async function startServer() {
 
   // Get all projects
   app.get('/api/projects', authMiddleware, (req: AuthRequest, res: Response) => {
-    const projects = db.prepare('SELECT p.*, b.name as buildingName FROM projects p LEFT JOIN buildings b ON p.buildingId = b.id ORDER BY p.buildingId ASC, p.orderIndex ASC').all();
+    const projects = db.prepare('SELECT p.*, b.name as buildingName FROM projects p LEFT JOIN buildings b ON p.buildingId = b.id ORDER BY p.buildingId ASC, p.orderIndex ASC').all() as any[];
+    
+    const segments = db.prepare('SELECT * FROM project_segments ORDER BY projectId, orderIndex ASC').all() as any[];
+    const segmentsByProject = segments.reduce((acc: any, seg: any) => {
+      if (!acc[seg.projectId]) acc[seg.projectId] = [];
+      try { seg.quizzes = JSON.parse(seg.quizzes); } catch { seg.quizzes = []; }
+      seg.isPublished = !!seg.isPublished;
+      seg.isLocked = !!seg.isLocked;
+      acc[seg.projectId].push(seg);
+      return acc;
+    }, {});
+
+    projects.forEach(p => {
+      p.segments = segmentsByProject[p.id] || [];
+    });
+
     res.json(projects);
   });
 
@@ -564,39 +622,60 @@ async function startServer() {
 
   // Add new project
   app.post('/api/projects', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
-    const { buildingId, title, description, content, scratchFileUrl, scratchProjectId, coverImage, quizzes } = req.body;
+    const { buildingId, title, description, scratchFileUrl, scratchProjectId, coverImage, segments } = req.body;
     const maxOrder = db.prepare('SELECT MAX(orderIndex) as max FROM projects WHERE buildingId = ?').get(buildingId) as { max: number };
     const orderIndex = (maxOrder.max || 0) + 1;
 
-    // Sanitize HTML content
-    const sanitizedContent = sanitizeHtml(content || '');
-    const sanitizedQuizzes = (quizzes || []).map((q: any) => ({
-      ...q,
-      question: sanitizeHtml(q.question || ''),
-    }));
-    const quizzesJson = JSON.stringify(sanitizedQuizzes);
+    const result = db.prepare('INSERT INTO projects (buildingId, title, description, scratchFileUrl, scratchProjectId, coverImage, isLocked, orderIndex) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(buildingId, title, description, scratchFileUrl, scratchProjectId, coverImage, 1, orderIndex);
 
-    const result = db.prepare('INSERT INTO projects (buildingId, title, description, content, scratchFileUrl, scratchProjectId, coverImage, isLocked, orderIndex, quizzes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(buildingId, title, description, sanitizedContent, scratchFileUrl, scratchProjectId, coverImage, 1, orderIndex, quizzesJson);
+    const projectId = result.lastInsertRowid;
 
-    res.json({ success: true, id: result.lastInsertRowid });
+    if (Array.isArray(segments)) {
+      const insertSegment = db.prepare('INSERT INTO project_segments (projectId, title, content, quizzes, isPublished, isLocked, orderIndex) VALUES (?, ?, ?, ?, ?, ?, ?)');
+      segments.forEach((seg: any, index: number) => {
+        const sanitizedContent = sanitizeHtml(seg.content || '');
+        const sanitizedQuizzes = (seg.quizzes || []).map((q: any) => ({ ...q, question: sanitizeHtml(q.question || '') }));
+        const quizzesJson = JSON.stringify(sanitizedQuizzes);
+        insertSegment.run(projectId, seg.title || '', sanitizedContent, quizzesJson, seg.isPublished ? 1 : 0, seg.isLocked ? 1 : 0, index + 1);
+      });
+    }
+
+    res.json({ success: true, id: projectId });
   });
 
   // Update project
   app.put('/api/projects/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
     const { id } = req.params;
-    const { buildingId, title, description, content, scratchFileUrl, scratchProjectId, coverImage, quizzes } = req.body;
+    const { buildingId, title, description, scratchFileUrl, scratchProjectId, coverImage, segments } = req.body;
 
-    // Sanitize HTML content
-    const sanitizedContent = sanitizeHtml(content || '');
-    const sanitizedQuizzes = (quizzes || []).map((q: any) => ({
-      ...q,
-      question: sanitizeHtml(q.question || ''),
-    }));
-    const quizzesJson = JSON.stringify(sanitizedQuizzes);
+    db.prepare('UPDATE projects SET buildingId = ?, title = ?, description = ?, scratchFileUrl = ?, scratchProjectId = ?, coverImage = ? WHERE id = ?')
+      .run(buildingId, title, description, scratchFileUrl, scratchProjectId, coverImage, id);
 
-    db.prepare('UPDATE projects SET buildingId = ?, title = ?, description = ?, content = ?, scratchFileUrl = ?, scratchProjectId = ?, coverImage = ?, quizzes = ? WHERE id = ?')
-      .run(buildingId, title, description, sanitizedContent, scratchFileUrl, scratchProjectId, coverImage, quizzesJson, id);
+    if (Array.isArray(segments)) {
+      const existingSegs = (db.prepare('SELECT id FROM project_segments WHERE projectId = ?').all(id) as any[]).map(s => s.id);
+      const incomingIds = segments.map((s: any) => s.id).filter(Boolean);
+      
+      const toDelete = existingSegs.filter(eid => !incomingIds.includes(eid));
+      if (toDelete.length > 0) {
+        db.prepare(`DELETE FROM project_segments WHERE id IN (${toDelete.map(() => '?').join(',')})`).run(...toDelete);
+      }
+
+      const insertSegment = db.prepare('INSERT INTO project_segments (projectId, title, content, quizzes, isPublished, isLocked, orderIndex) VALUES (?, ?, ?, ?, ?, ?, ?)');
+      const updateSegment = db.prepare('UPDATE project_segments SET title = ?, content = ?, quizzes = ?, isPublished = ?, isLocked = ?, orderIndex = ? WHERE id = ?');
+
+      segments.forEach((seg: any, index: number) => {
+        const sanitizedContent = sanitizeHtml(seg.content || '');
+        const sanitizedQuizzes = (seg.quizzes || []).map((q: any) => ({ ...q, question: sanitizeHtml(q.question || '') }));
+        const quizzesJson = JSON.stringify(sanitizedQuizzes);
+        
+        if (seg.id && existingSegs.includes(seg.id)) {
+          updateSegment.run(seg.title || '', sanitizedContent, quizzesJson, seg.isPublished ? 1 : 0, seg.isLocked ? 1 : 0, index + 1, seg.id);
+        } else {
+          insertSegment.run(id, seg.title || '', sanitizedContent, quizzesJson, seg.isPublished ? 1 : 0, seg.isLocked ? 1 : 0, index + 1);
+        }
+      });
+    }
 
     res.json({ success: true });
   });

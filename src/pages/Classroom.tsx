@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { CheckSquare, Square, Download, ArrowLeft, CheckCircle2, XCircle } from 'lucide-react';
+import { CheckSquare, Square, Download, ArrowLeft, CheckCircle2, XCircle, Lock } from 'lucide-react';
 import DOMPurify from 'isomorphic-dompurify';
 import { motion, AnimatePresence } from 'motion/react';
 import { authFetch } from '../App';
@@ -12,9 +12,9 @@ export default function Classroom({ user }: { user: User }) {
   const navigate = useNavigate();
   const [project, setProject] = useState<Project | null>(null);
   const [completed, setCompleted] = useState(false);
-  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
-  const [answers, setAnswers] = useState<Record<number, number | number[]>>({});
-  const [showResults, setShowResults] = useState(false);
+  const [segmentProgress, setSegmentProgress] = useState<Record<number, string>>({});
+  const [segmentAnswers, setSegmentAnswers] = useState<Record<number, Record<number, number | number[]>>>({});
+  const [segmentShowResults, setSegmentShowResults] = useState<Record<number, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCoinAnimation, setShowCoinAnimation] = useState(false);
@@ -36,25 +36,18 @@ export default function Classroom({ user }: { user: User }) {
     ])
       .then(([projectData, progressData]) => {
         setProject(projectData);
-        if (projectData.quizzes) {
-          try {
-            const parsed = typeof projectData.quizzes === 'string'
-              ? JSON.parse(projectData.quizzes)
-              : projectData.quizzes;
-            setQuizzes(parsed);
-          } catch {
-            setQuizzes([]);
-          }
-        }
         if (progressData?.state === 'completed') {
           setCompleted(true);
+        }
+        if (progressData?.segmentProgress) {
+          setSegmentProgress(progressData.segmentProgress);
         }
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
   }, [id, user.id]);
 
-  const handleComplete = async () => {
+  const handleCompleteProject = async () => {
     try {
       const res = await authFetch(`/api/student/projects/${id}/complete`, {
         method: 'POST',
@@ -73,45 +66,67 @@ export default function Classroom({ user }: { user: User }) {
     }
   };
 
-  const handleAnswerChange = (quizIndex: number, optionIndex: number) => {
-    if (completed) return;
-    const isMulti = quizzes[quizIndex]?.isMultiSelect;
+  const handleCompleteSegment = async (segmentId: number) => {
+    try {
+      const res = await authFetch(`/api/student/segments/${segmentId}/complete`, {
+        method: 'POST',
+        body: JSON.stringify({ userId: user.id })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSegmentProgress(prev => ({ ...prev, [segmentId]: 'completed' }));
+        if (data.coinAwarded) {
+          setShowCoinAnimation(true);
+          setTimeout(() => setShowCoinAnimation(false), 3000);
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to complete segment', err);
+    }
+  };
+
+  const handleAnswerChange = (segmentId: number, quizIndex: number, optionIndex: number, isMulti: boolean) => {
+    if (segmentProgress[segmentId] === 'completed') return;
     
-    setAnswers(prev => {
+    setSegmentAnswers(prev => {
+      const segAns = prev[segmentId] || {};
       if (isMulti) {
-        const current = (prev[quizIndex] as number[]) || [];
+        const current = (segAns[quizIndex] as number[]) || [];
         const next = current.includes(optionIndex)
           ? current.filter(i => i !== optionIndex)
           : [...current, optionIndex];
-        return { ...prev, [quizIndex]: next };
+        return { ...prev, [segmentId]: { ...segAns, [quizIndex]: next } };
       } else {
-        return { ...prev, [quizIndex]: optionIndex };
+        return { ...prev, [segmentId]: { ...segAns, [quizIndex]: optionIndex } };
       }
     });
-    setShowResults(false);
+    setSegmentShowResults(prev => ({ ...prev, [segmentId]: false }));
   };
 
-  const allAnswered = quizzes.length > 0 && quizzes.every((_, i) => {
-    const ans = answers[i];
-    if (ans === undefined) return false;
-    if (Array.isArray(ans)) return ans.length > 0;
-    return true;
-  });
-  
-  const allCorrect = quizzes.length === 0 || (allAnswered && quizzes.every((q, i) => {
-    const ans = answers[i];
-    const correctIndices = q.correctOptionIndices || [q.correctOptionIndex ?? 0];
-    
-    if (Array.isArray(ans)) {
-      if (ans.length !== correctIndices.length) return false;
-      return ans.every(idx => correctIndices.includes(idx));
-    } else {
-      return correctIndices.length === 1 && correctIndices[0] === ans;
-    }
-  }));
+  const checkSegmentAllAnswered = (segment: any) => {
+    if (!segment.quizzes || segment.quizzes.length === 0) return true;
+    const segAns = segmentAnswers[segment.id] || {};
+    return segment.quizzes.every((_: any, i: number) => {
+      const ans = segAns[i];
+      if (ans === undefined) return false;
+      if (Array.isArray(ans)) return ans.length > 0;
+      return true;
+    });
+  };
 
-  const handleCheckAnswers = () => {
-    setShowResults(true);
+  const checkSegmentAllCorrect = (segment: any) => {
+    if (!segment.quizzes || segment.quizzes.length === 0) return true;
+    const segAns = segmentAnswers[segment.id] || {};
+    return checkSegmentAllAnswered(segment) && segment.quizzes.every((q: any, i: number) => {
+      const ans = segAns[i];
+      const correctIndices = q.correctOptionIndices || [q.correctOptionIndex ?? 0];
+      if (Array.isArray(ans)) {
+        if (ans.length !== correctIndices.length) return false;
+        return ans.every((idx: number) => correctIndices.includes(idx));
+      } else {
+        return correctIndices.length === 1 && correctIndices[0] === ans;
+      }
+    });
   };
 
   // Sanitize HTML before rendering
@@ -120,6 +135,9 @@ export default function Classroom({ user }: { user: User }) {
   if (loading) return <div className="text-center p-8 text-stone-500">Loading classroom...</div>;
   if (error) return <div className="text-center p-8 text-red-500">{error}</div>;
   if (!project) return <div className="text-center p-8 text-stone-500">Classroom not found.</div>;
+
+  const publishedSegments = (project.segments || []).filter(s => !!s.isPublished);
+  const allSegmentsCompleted = publishedSegments.every(s => segmentProgress[s.id!] === 'completed');
 
   return (
     <>
@@ -147,168 +165,219 @@ export default function Classroom({ user }: { user: User }) {
       </AnimatePresence>
 
       <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden border-4 border-orange-100">
-      <div className="bg-orange-400 p-6 flex items-center justify-between">
-        <button
-          onClick={() => navigate(`/building/${project.buildingId}`)}
-          className="flex items-center gap-2 text-white hover:bg-orange-500 px-4 py-2 rounded-xl transition-colors font-bold"
-        >
-          <ArrowLeft size={20} /> Back to Hallway
-        </button>
-        <h1 className="text-3xl font-extrabold text-white drop-shadow-md">{project.title}</h1>
-        <div className="w-24"></div> {/* Spacer for centering */}
-      </div>
-
-      <div className="p-8">
-        {project.coverImage && (
-          <img
-            src={project.coverImage}
-            alt={project.title}
-            className="w-full h-64 object-cover rounded-2xl mb-8 shadow-md border-2 border-orange-50"
-            referrerPolicy="no-referrer"
-          />
-        )}
-
-        <div className="prose prose-orange max-w-none mb-12">
-          <h2 className="text-2xl font-bold text-orange-800 mb-4">Lesson Content</h2>
-          <div
-            ref={contentRef}
-            className="text-stone-700 leading-relaxed text-lg select-text"
-            dangerouslySetInnerHTML={{ __html: sanitize(project.content || '') }}
-          />
+        <div className="bg-orange-400 p-6 flex items-center justify-between">
+          <button
+            onClick={() => navigate(`/building/${project.buildingId}`)}
+            className="flex items-center gap-2 text-white hover:bg-orange-500 px-4 py-2 rounded-xl transition-colors font-bold"
+          >
+            <ArrowLeft size={20} /> Back to Hallway
+          </button>
+          <h1 className="text-3xl font-extrabold text-white drop-shadow-md">{project.title}</h1>
+          <div className="w-24"></div>
         </div>
 
-        {project.scratchProjectId && (
-          <div className="mb-12">
-            <h2 className="text-2xl font-bold text-orange-800 mb-4">Interactive Scratch Project</h2>
-            <div className="rounded-2xl overflow-hidden border-4 border-orange-200 shadow-lg bg-stone-100 flex justify-center p-4">
-              <iframe
-                src={`https://scratch.mit.edu/projects/${project.scratchProjectId}/embed`}
-                allowTransparency={true}
-                width="485"
-                height="402"
-                frameBorder="0"
-                scrolling="no"
-                allowFullScreen
-                title="Scratch Project"
-              ></iframe>
-            </div>
-          </div>
-        )}
+        <div className="p-8">
+          {project.coverImage && (
+            <img
+              src={project.coverImage}
+              alt={project.title}
+              className="w-full h-64 object-cover rounded-2xl mb-8 shadow-md border-2 border-orange-50"
+              referrerPolicy="no-referrer"
+            />
+          )}
 
-        {project.scratchFileUrl && (
-          <div className="bg-orange-50 p-6 rounded-2xl border-2 border-orange-200 mb-12 flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-bold text-orange-800 mb-2">Project Files</h3>
-              <p className="text-stone-600">Download the starter project to begin coding.</p>
+          {project.scratchProjectId && (
+            <div className="mb-12">
+              <div className="rounded-2xl overflow-hidden border-4 border-orange-200 shadow-lg bg-stone-100 flex justify-center p-4">
+                <iframe
+                  src={`https://scratch.mit.edu/projects/${project.scratchProjectId}/embed`}
+                  allowTransparency={true}
+                  width="485"
+                  height="402"
+                  frameBorder="0"
+                  scrolling="no"
+                  allowFullScreen
+                  title="Scratch Project"
+                ></iframe>
+              </div>
             </div>
-            <a
-              href={project.scratchFileUrl}
-              className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-xl font-bold shadow-md transition-transform active:scale-95"
-              download
-            >
-              <Download size={24} /> Download .sb3
-            </a>
-          </div>
-        )}
+          )}
 
-        {quizzes.length > 0 && (
-          <div className="mb-12 border-t-4 border-orange-100 pt-8">
-            <h3 className="text-2xl font-bold text-orange-800 mb-6">Knowledge Check</h3>
-            <div className="space-y-8">
-              {quizzes.map((quiz, qIndex) => (
-                <div key={qIndex} className="bg-stone-50 p-6 rounded-2xl border-2 border-stone-200">
-                  <div className="flex items-start gap-4 mb-6">
-                    <div className="bg-orange-100 text-orange-700 w-8 h-8 rounded-full flex items-center justify-center font-bold shrink-0">
-                      {qIndex + 1}
-                    </div>
-                    <div className="prose prose-orange max-w-none" dangerouslySetInnerHTML={{ __html: sanitize(quiz.question) }} />
+          {project.scratchFileUrl && (
+            <div className="bg-orange-50 p-6 rounded-2xl border-2 border-orange-200 mb-12 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-bold text-orange-800 mb-2">Project Files</h3>
+                <p className="text-stone-600">Download the starter project to begin coding.</p>
+              </div>
+              <a
+                href={project.scratchFileUrl}
+                className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-xl font-bold shadow-md transition-transform active:scale-95"
+                download
+              >
+                <Download size={24} /> Download .sb3
+              </a>
+            </div>
+          )}
+
+          <div ref={contentRef} className="space-y-16">
+            {publishedSegments.map((seg, sIndex) => {
+              const segId = seg.id!;
+              const isSegLocked = !!seg.isLocked;
+              const isSegCompleted = segmentProgress[segId] === 'completed';
+              const segQuizzes = (Array.isArray(seg.quizzes) ? seg.quizzes : []) as Quiz[];
+              const isAllAnswered = checkSegmentAllAnswered(seg);
+              const isAllCorrect = checkSegmentAllCorrect(seg);
+              const showResults = segmentShowResults[segId] || false;
+
+              if (isSegLocked) {
+                return (
+                  <div key={segId} className="bg-stone-50 border-4 border-dashed border-stone-200 rounded-3xl p-12 flex flex-col items-center justify-center text-stone-500">
+                    <Lock size={64} className="mb-6 opacity-20" />
+                    <h3 className="text-3xl font-bold text-stone-400 mb-2">{seg.title || `Segment ${sIndex + 1}`}</h3>
+                    <p className="text-stone-400 text-lg font-medium tracking-wide">(Locked by Teacher)</p>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {quiz.options.map((opt: string, oIndex: number) => {
-                      const ans = answers[qIndex];
-                      const isSelected = Array.isArray(ans) ? ans.includes(oIndex) : ans === oIndex;
-                      const correctIndices = quiz.correctOptionIndices || [quiz.correctOptionIndex ?? 0];
-                      const isCorrect = correctIndices.includes(oIndex);
-                      const showCorrectness = showResults || completed;
+                );
+              }
 
-                      let btnClass = "text-left px-6 py-4 rounded-xl border-2 transition-all ";
-                      if (showCorrectness) {
-                        if (isCorrect) {
-                          btnClass += "bg-green-50 border-green-500 text-green-800";
-                        } else if (isSelected && !isCorrect) {
-                          btnClass += "bg-red-50 border-red-500 text-red-800";
-                        } else {
-                          btnClass += "bg-white border-stone-200 text-stone-600 opacity-50";
-                        }
-                      } else {
-                        if (isSelected) {
-                          btnClass += "bg-orange-50 border-orange-500 text-orange-800 shadow-md";
-                        } else {
-                          btnClass += "bg-white border-stone-200 text-stone-600 hover:border-orange-300 hover:bg-orange-50/50";
-                        }
-                      }
+              return (
+                <div key={segId} className="bg-white rounded-3xl border border-stone-100 shadow-sm p-8">
+                  {seg.title && <h2 className="text-3xl font-bold text-orange-800 mb-8 pb-4 border-b border-orange-100">{seg.title}</h2>}
+                  
+                  {seg.content && (
+                    <div
+                      className="prose prose-orange max-w-none mb-12 text-stone-700 leading-relaxed text-lg select-text"
+                      dangerouslySetInnerHTML={{ __html: sanitize(seg.content) }}
+                    />
+                  )}
 
-                      return (
-                        <button
-                          key={oIndex}
-                          onClick={() => handleAnswerChange(qIndex, oIndex)}
-                          disabled={completed}
-                          className={btnClass}
-                        >
-                            <div className="flex items-center gap-3">
-                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                                isSelected ? 'bg-orange-500 border-orange-500' : 'bg-white border-stone-300'
-                              }`}>
-                                {isSelected && (
-                                  <div className={quiz.isMultiSelect ? "w-2.5 h-2.5 bg-white rounded-sm" : "w-2.5 h-2.5 bg-white rounded-full"} />
-                                )}
+                  {segQuizzes.length > 0 && (
+                    <div className="mb-8 p-8 rounded-3xl bg-orange-50/50 border-2 border-orange-100">
+                      <h3 className="text-2xl font-bold text-orange-800 mb-8 border-b-2 border-orange-200 pb-4 inline-block">Knowledge Check</h3>
+                      <div className="space-y-8">
+                        {segQuizzes.map((quiz, qIndex) => (
+                          <div key={qIndex} className="bg-white p-8 rounded-2xl shadow-sm border border-stone-100">
+                            <div className="flex items-start gap-4 mb-8">
+                              <div className="bg-orange-100 text-orange-700 w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg shrink-0">
+                                {qIndex + 1}
                               </div>
-                              <span>{opt}</span>
+                              <div className="prose prose-orange max-w-none text-xl font-medium text-stone-800" dangerouslySetInnerHTML={{ __html: sanitize(quiz.question) }} />
                             </div>
-                            {showCorrectness && isCorrect && <CheckCircle2 className="text-green-500" size={20} />}
-                            {showCorrectness && isSelected && !isCorrect && <XCircle className="text-red-500" size={20} />}
-                        </button>
-                      );
-                    })}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-14">
+                              {quiz.options.map((opt: string, oIndex: number) => {
+                                const ans = (segmentAnswers[segId] || {})[qIndex];
+                                const isSelected = Array.isArray(ans) ? ans.includes(oIndex) : ans === oIndex;
+                                const correctIndices = quiz.correctOptionIndices || [quiz.correctOptionIndex ?? 0];
+                                const isCorrect = correctIndices.includes(oIndex);
+                                const showCorrectness = showResults || isSegCompleted;
+
+                                let btnClass = "text-left px-6 py-4 rounded-xl border-2 transition-all font-medium text-lg ";
+                                if (showCorrectness) {
+                                  if (isCorrect) {
+                                    btnClass += "bg-green-50 border-green-500 text-green-800";
+                                  } else if (isSelected && !isCorrect) {
+                                    btnClass += "bg-red-50 border-red-500 text-red-800";
+                                  } else {
+                                    btnClass += "bg-stone-50 border-stone-200 text-stone-500 opacity-60";
+                                  }
+                                } else {
+                                  if (isSelected) {
+                                    btnClass += "bg-orange-50 border-orange-500 text-orange-800 shadow-md ring-2 ring-orange-200";
+                                  } else {
+                                    btnClass += "bg-white border-stone-200 text-stone-600 hover:border-orange-300 hover:bg-orange-50 hover:shadow-sm";
+                                  }
+                                }
+
+                                return (
+                                  <button
+                                    key={oIndex}
+                                    onClick={() => handleAnswerChange(segId, qIndex, oIndex, !!quiz.isMultiSelect)}
+                                    disabled={isSegCompleted}
+                                    className={btnClass}
+                                  >
+                                      <div className="flex items-center gap-4">
+                                        <div className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                                          isSelected ? 'bg-orange-500 border-none' : 'bg-white border-2 border-stone-300'
+                                        }`}>
+                                          {isSelected && (
+                                            <div className={quiz.isMultiSelect ? "w-3 h-3 bg-white rounded-sm" : "w-3 h-3 bg-white rounded-full"} />
+                                          )}
+                                        </div>
+                                        <span className="flex-1 leading-tight">{opt}</span>
+                                        {showCorrectness && isCorrect && <CheckCircle2 className="text-green-500 shrink-0" size={24} />}
+                                        {showCorrectness && isSelected && !isCorrect && <XCircle className="text-red-500 shrink-0" size={24} />}
+                                      </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {!isSegCompleted && (
+                        <div className="mt-8 flex justify-center">
+                          <button
+                            onClick={() => setSegmentShowResults(prev => ({ ...prev, [segId]: true }))}
+                            disabled={!isAllAnswered}
+                            className={`px-10 py-4 rounded-2xl font-bold text-lg transition-all shadow-md ${isAllAnswered
+                                ? 'bg-orange-500 text-white hover:bg-orange-600 hover:shadow-lg hover:-translate-y-0.5'
+                                : 'bg-stone-200 text-stone-500 cursor-not-allowed opacity-70'
+                              }`}
+                          >
+                            Check Answers
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="mt-8 flex justify-end">
+                    <button
+                      onClick={() => handleCompleteSegment(segId)}
+                      disabled={isSegCompleted || (segQuizzes.length > 0 && (!showResults || !isAllCorrect))}
+                      className={`flex items-center gap-3 px-8 py-4 rounded-2xl font-bold text-lg transition-all shadow-md ${isSegCompleted
+                          ? 'bg-green-500 text-white cursor-default'
+                          : (segQuizzes.length === 0 || (showResults && isAllCorrect))
+                            ? 'bg-blue-500 text-white hover:bg-blue-600 hover:scale-105'
+                            : 'bg-stone-100 text-stone-400 border-2 border-stone-200 cursor-not-allowed hidden'
+                        }`}
+                    >
+                      {isSegCompleted ? <CheckSquare size={24} /> : <Square size={24} />}
+                      {isSegCompleted ? 'Segment Completed' : 'Complete This Segment'}
+                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
 
-            {!completed && quizzes.length > 0 && (
-              <div className="mt-8 flex justify-center">
-                <button
-                  onClick={handleCheckAnswers}
-                  disabled={!allAnswered}
-                  className={`px-8 py-3 rounded-xl font-bold text-lg transition-all shadow-md ${allAnswered
-                      ? 'bg-orange-500 text-white hover:bg-orange-600'
-                      : 'bg-stone-200 text-stone-500 cursor-not-allowed'
-                    }`}
-                >
-                  Check Answers
-                </button>
-              </div>
+            {publishedSegments.length === 0 && (
+              <div className="text-center p-12 text-stone-500 text-lg">No segments available for this lesson yet.</div>
             )}
           </div>
-        )}
 
-        <div className="border-t-4 border-orange-100 pt-8 flex items-center justify-center">
-          <button
-            onClick={handleComplete}
-            disabled={completed || (quizzes.length > 0 && (!showResults || !allCorrect))}
-            className={`flex items-center gap-4 px-8 py-4 rounded-2xl font-bold text-xl transition-all shadow-lg ${completed
-                ? 'bg-green-500 text-white cursor-default'
-                : (quizzes.length === 0 || (showResults && allCorrect))
-                  ? 'bg-orange-500 text-white hover:bg-orange-600 hover:scale-105'
-                  : 'bg-stone-100 text-stone-400 border-2 border-stone-200 cursor-not-allowed'
-              }`}
-          >
-            {completed ? <CheckSquare size={32} /> : <Square size={32} />}
-            {completed ? 'Lesson Completed!' : 'Mark as Completed'}
-          </button>
+          <div className="border-t-4 border-orange-100 mt-16 pt-12 flex flex-col items-center justify-center">
+            <h3 className="text-2xl font-bold text-stone-700 mb-6 flex items-center gap-2">
+              <CheckSquare className="text-orange-500" /> Overall Lesson Progress
+            </h3>
+            <button
+              onClick={handleCompleteProject}
+              disabled={completed || !allSegmentsCompleted || publishedSegments.length === 0}
+              className={`flex items-center gap-4 px-10 py-5 rounded-3xl font-extrabold text-2xl transition-all shadow-xl ${completed
+                  ? 'bg-green-500 text-white cursor-default'
+                  : allSegmentsCompleted && publishedSegments.length > 0
+                    ? 'bg-gradient-to-r from-orange-400 to-orange-500 text-white hover:from-orange-500 hover:to-orange-600 hover:scale-105'
+                    : 'bg-stone-100 text-stone-400 border-4 border-stone-200 cursor-not-allowed'
+                }`}
+            >
+              {completed ? <CheckSquare size={36} /> : <Square size={36} />}
+              {completed ? 'Lesson Fully Completed!' : 'Mark Lesson as Completed'}
+            </button>
+            {!completed && !allSegmentsCompleted && publishedSegments.length > 0 && (
+              <p className="mt-4 text-stone-500 font-medium">Complete all segments to mark the lesson as completed.</p>
+            )}
+          </div>
         </div>
       </div>
-    </div>
       <SelectionPopup user={user} contentRef={contentRef} projectTitle={project.title} />
     </>
   );

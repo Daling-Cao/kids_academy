@@ -54,6 +54,27 @@ db.exec(`
     FOREIGN KEY (projectId) REFERENCES projects(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS project_segments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    projectId INTEGER NOT NULL,
+    title TEXT,
+    content TEXT,
+    quizzes TEXT DEFAULT '[]',
+    isPublished INTEGER NOT NULL DEFAULT 1,
+    isLocked INTEGER NOT NULL DEFAULT 0,
+    orderIndex INTEGER NOT NULL,
+    FOREIGN KEY (projectId) REFERENCES projects(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS user_segment_progress (
+    userId INTEGER NOT NULL,
+    segmentId INTEGER NOT NULL,
+    state TEXT NOT NULL DEFAULT 'completed',
+    PRIMARY KEY (userId, segmentId),
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (segmentId) REFERENCES project_segments(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS user_building_visibility (
     userId INTEGER NOT NULL,
     buildingId INTEGER NOT NULL,
@@ -119,6 +140,25 @@ if (!hasCoinsColumn) {
   db.exec('ALTER TABLE users ADD COLUMN coins INTEGER NOT NULL DEFAULT 0;');
 }
 
+// Migrate projects content to segments
+try {
+  const segmentCount = db.prepare('SELECT COUNT(*) as count FROM project_segments').get() as { count: number };
+  if (segmentCount.count === 0) {
+    const projectsWithContent = db.prepare(`SELECT COUNT(*) as count FROM projects WHERE content IS NOT NULL OR quizzes != '[]'`).get() as { count: number };
+    if (projectsWithContent.count > 0) {
+      console.log('Migrating existing project content and quizzes to project_segments...');
+      db.exec(`
+        INSERT INTO project_segments (projectId, title, content, quizzes, isPublished, isLocked, orderIndex)
+        SELECT id, 'Segment 1', content, quizzes, 1, 0, 1
+        FROM projects
+        WHERE (content IS NOT NULL AND content != '') OR (quizzes IS NOT NULL AND quizzes != '[]' AND quizzes != '');
+      `);
+    }
+  }
+} catch (error) {
+  console.error('Error migrating to project_segments:', error);
+}
+
 // Seed initial data if empty
 const adminUsername = process.env.ADMIN_USERNAME || 'teacher';
 const adminPassword = process.env.ADMIN_PASSWORD || 'kids-academy-default-secure-pwd-123'; // More unique placeholder
@@ -137,10 +177,15 @@ if (userCount.count === 0) {
   const b1 = insertBuilding.run('Beginner Building', 'Start your Scratch journey here.', '', 1);
   const b2 = insertBuilding.run('Advanced Building', 'Master complex Scratch concepts.', '', 2);
 
-  const insertProject = db.prepare('INSERT INTO projects (buildingId, title, description, content, scratchFileUrl, scratchProjectId, coverImage, isLocked, orderIndex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-  insertProject.run(b1.lastInsertRowid, 'Scratch Basics', 'Learn the basics of Scratch programming.', 'Welcome to Scratch! In this lesson, we will learn how to make a sprite move.', '', '31876', '', 0, 1);
-  insertProject.run(b1.lastInsertRowid, 'Animation', 'Create your first animation.', 'Let us animate a character.', '', '10128407', '', 0, 2);
-  insertProject.run(b2.lastInsertRowid, 'Games', 'Build a simple game.', 'Time to build a game!', '', '10128515', '', 1, 1);
+  const insertProject = db.prepare('INSERT INTO projects (buildingId, title, description, scratchFileUrl, scratchProjectId, coverImage, isLocked, orderIndex) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+  const p1 = insertProject.run(b1.lastInsertRowid, 'Scratch Basics', 'Learn the basics of Scratch programming.', '', '31876', '', 0, 1);
+  const p2 = insertProject.run(b1.lastInsertRowid, 'Animation', 'Create your first animation.', '', '10128407', '', 0, 2);
+  const p3 = insertProject.run(b2.lastInsertRowid, 'Games', 'Build a simple game.', '', '10128515', '', 1, 1);
+
+  const insertSegment = db.prepare('INSERT INTO project_segments (projectId, title, content, orderIndex) VALUES (?, ?, ?, ?)');
+  insertSegment.run(p1.lastInsertRowid, 'Segment 1', 'Welcome to Scratch! In this lesson, we will learn how to make a sprite move.', 1);
+  insertSegment.run(p2.lastInsertRowid, 'Segment 1', 'Let us animate a character.', 1);
+  insertSegment.run(p3.lastInsertRowid, 'Segment 1', 'Time to build a game!', 1);
 } else {
   // Sync teacher credentials from env only if provided
   if (process.env.ADMIN_PASSWORD) {

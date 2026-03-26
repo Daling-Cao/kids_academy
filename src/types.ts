@@ -20,19 +20,32 @@ export interface Quiz {
     isMultiSelect?: boolean;
 }
 
+export interface ProjectSegment {
+    id?: number;
+    projectId?: number;
+    title?: string;
+    content: string;
+    quizzes: Quiz[] | string;
+    isPublished: boolean | number;
+    isLocked: boolean | number;
+    orderIndex: number;
+}
+
 export interface Project {
     id: number;
     buildingId: number;
     title: string;
     description: string;
-    content: string;
     scratchFileUrl: string;
     scratchProjectId: string;
     coverImage: string;
     isLocked: boolean | number;
     orderIndex: number;
-    quizzes: Quiz[] | string;
+    segments?: ProjectSegment[];
     buildingName?: string;
+    // Legacy fields for backward compatibility
+    content?: string;
+    quizzes?: Quiz[] | string;
 }
 
 export interface Building {
