@@ -212,35 +212,81 @@ sudo setsebool -P httpd_can_network_connect 1
 
 ## 11. 后续更新部署
 
-每次代码更新后，在 VPS 上执行：
+> ⚠️ **重要：** 更新时请勿重新 `git clone`，否则会产生一个新的空数据库文件。应始终用 `git pull` 原地更新代码。
+
+每次代码更新后，在 VPS 上执行以下步骤：
+
+### 推荐：使用安全更新脚本（保留数据库和上传文件）
+
+首次创建脚本：
 
 ```bash
-cd /var/www/kids-academy
+nano /var/www/kids-academy/deploy.sh
+```
 
-# 拉取最新代码
+写入以下内容：
+
+```bash
+#!/bin/bash
+set -e  # 任何步骤失败时立即停止
+
+APP_DIR="/var/www/kids-academy"
+BACKUP_DIR="/var/backups/kids-academy"
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+
+echo "🚀 开始部署..."
+
+# ── 1. 备份数据库和上传文件 ──────────────────────────────────────────
+mkdir -p "$BACKUP_DIR"
+
+if [ -f "$APP_DIR/database.sqlite" ]; then
+    cp "$APP_DIR/database.sqlite" "$BACKUP_DIR/database_${TIMESTAMP}.sqlite"
+    echo "✅ 数据库备份完成：$BACKUP_DIR/database_${TIMESTAMP}.sqlite"
+fi
+
+# 只保留最近 10 个备份，自动清理旧的
+ls -t "$BACKUP_DIR"/database_*.sqlite 2>/dev/null | tail -n +11 | xargs rm -f 2>/dev/null || true
+
+# ── 2. 拉取最新代码 ─────────────────────────────────────────────────
+cd "$APP_DIR"
 git pull
 
-# 安装新依赖（如有）
+# ── 3. 安装依赖 / 构建前端 ──────────────────────────────────────────
 npm install
-
-# 重新构建前端
 npm run build
 
-# 重启后端
+# ── 4. 重启后端 ──────────────────────────────────────────────────────
+pm2 restart kids-academy
+
+echo "✅ 部署完成！"
+echo "   数据库已备份至 $BACKUP_DIR/database_${TIMESTAMP}.sqlite"
+```
+
+授权并运行：
+
+```bash
+chmod +x /var/www/kids-academy/deploy.sh
+
+# 以后每次更新只需运行：
+/var/www/kids-academy/deploy.sh
+```
+
+### 如果数据库意外被清空（紧急恢复）
+
+备份文件保存在 `/var/backups/kids-academy/`，恢复方法：
+
+```bash
+# 查看所有备份
+ls -lh /var/backups/kids-academy/
+
+# 恢复最新备份（替换 TIMESTAMP 为实际时间戳）
+cp /var/backups/kids-academy/database_TIMESTAMP.sqlite /var/www/kids-academy/database.sqlite
 pm2 restart kids-academy
 ```
 
-> 💡 可以把以上命令保存为脚本 `/var/www/kids-academy/deploy.sh`：
-> ```bash
-> #!/bin/bash
-> cd /var/www/kids-academy
-> git pull
-> npm install
-> npm run build
-> pm2 restart kids-academy
-> echo "✅ 部署完成！"
-> ```
-> 然后 `chmod +x deploy.sh`，以后更新只需运行 `./deploy.sh`
+### 数据库升级安全性说明
+
+应用的 `src/db.ts` 使用 `CREATE TABLE IF NOT EXISTS` 和 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` 迁移策略，**不会删除现有数据**。每次重启只会在已有结构基础上追加新字段，不会清空数据。
 
 ## 常用维护命令
 
