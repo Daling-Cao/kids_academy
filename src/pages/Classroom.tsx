@@ -389,7 +389,7 @@ export default function Classroom({ user }: { user: User }) {
           </div>
         </div>
       </div>
-      <SelectionPopup user={user} contentRef={contentRef} projectTitle={project.title} />
+      <SelectionPopup contentRef={contentRef} projectTitle={project.title} />
     </>
   );
 }

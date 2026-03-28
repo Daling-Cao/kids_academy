@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, X, HelpCircle } from 'lucide-react';
 import { authFetch } from '../App';
-import type { User } from '../types';
 
 interface SelectionPopupProps {
-    user: User;
     contentRef: React.RefObject<HTMLDivElement | null>;
     projectTitle: string;
 }
 
-export default function SelectionPopup({ user, contentRef, projectTitle }: SelectionPopupProps) {
+export default function SelectionPopup({ contentRef, projectTitle }: SelectionPopupProps) {
     const [popup, setPopup] = useState<{ x: number; y: number; selectedText: string } | null>(null);
     const [showForm, setShowForm] = useState(false);
     const [question, setQuestion] = useState('');
@@ -41,9 +39,23 @@ export default function SelectionPopup({ user, contentRef, projectTitle }: Selec
                 }
             }
 
-            // Position popup near the mouse
-            const x = Math.min(e.clientX + window.scrollX, document.body.offsetWidth - 280);
-            const y = e.clientY + window.scrollY - 10;
+            // Position popup at the RIGHT EDGE of the selected text
+            if (!selection || selection.rangeCount === 0) return;
+            const range = selection.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+
+            // Place button just to the right of the selection, vertically centered
+            const BUTTON_W = 130;
+            const BUTTON_H = 34;
+            const GAP = 8;
+
+            let x = rect.right + GAP;
+            let y = rect.top + (rect.height / 2) - (BUTTON_H / 2);
+
+            // Clamp so it doesn't overflow the right edge of the viewport
+            if (x + BUTTON_W > document.documentElement.clientWidth) {
+                x = rect.left - BUTTON_W - GAP;
+            }
 
             setPopup({ x, y, selectedText });
             setShowForm(false);
@@ -72,7 +84,12 @@ export default function SelectionPopup({ user, contentRef, projectTitle }: Selec
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
         setSending(true);
-        const content = `📚 **${projectTitle}**\n\n❓ 关于这段文字有个问题：\n\n"${popup!.selectedText}"\n\n${question}`;
+        // Truncate selectedText to keep total message under server's 1000-char limit
+        const MAX_SELECTED = 300;
+        const truncatedText = popup!.selectedText.length > MAX_SELECTED
+            ? popup!.selectedText.slice(0, MAX_SELECTED) + '...'
+            : popup!.selectedText;
+        const content = `📚 **${projectTitle}**\n\n❓ 关于这段文字有个问题：\n\n"${truncatedText}"\n\n${question}`.slice(0, 990);
         try {
             const res = await authFetch('/api/messages', {
                 method: 'POST',
@@ -82,7 +99,6 @@ export default function SelectionPopup({ user, contentRef, projectTitle }: Selec
             if (data.success) {
                 setSent(true);
             } else {
-                setQuestion(q => q); // keep question
                 alert(data.message || 'Failed to send. Please try again.');
             }
         } catch {
@@ -97,8 +113,8 @@ export default function SelectionPopup({ user, contentRef, projectTitle }: Selec
     return (
         <div
             ref={popupRef}
-            className="fixed z-50 animate-in fade-in slide-in-from-bottom-1 duration-150"
-            style={{ left: popup.x, top: popup.y, transform: 'translateY(-100%)' }}
+            className="fixed z-50 animate-in fade-in slide-in-from-right-1 duration-150"
+            style={{ left: popup.x, top: popup.y }}
         >
             {!showForm ? (
                 // Small "Ask teacher" tooltip button
