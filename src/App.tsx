@@ -6,6 +6,7 @@ import StudentDashboard from './pages/StudentDashboard';
 import BuildingView from './pages/BuildingView';
 import Classroom from './pages/Classroom';
 import TeacherDashboard from './pages/TeacherDashboard';
+import CookieConsent from './components/CookieConsent';
 import type { User } from './types';
 
 // ─── Authenticated fetch wrapper ──────────────────────────────────
@@ -120,6 +121,7 @@ export default function App() {
           </Routes>
         </main>
       </div>
+      <CookieConsent />
     </Router>
   );
 }
