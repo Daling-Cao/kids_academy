@@ -288,13 +288,17 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
 
                                     <div className="mb-8">
                                         <label className="block text-sm font-medium text-stone-600 mb-1">Content ({lang.toUpperCase()})</label>
-                                        <div className="bg-white rounded-xl border border-stone-300 focus-within:border-orange-400 overflow-hidden">
+                                        <div
+                                            className="bg-white rounded-xl border border-stone-300 focus-within:border-orange-400 overflow-hidden"
+                                            style={{ resize: 'vertical', overflow: 'auto', minHeight: '200px', height: '320px', maxHeight: '80vh' }}
+                                        >
                                             <ReactQuill
                                                 theme="snow"
                                                 value={seg[cField] || ''}
                                                 onChange={(content) => handleUpdateSegment(sIndex, cField, content)}
                                                 modules={QUILL_MODULES}
-                                                className="h-64 mb-12 bg-orange-50/10"
+                                                style={{ height: 'calc(100% - 42px)' }}
+                                                className="bg-orange-50/10"
                                             />
                                         </div>
                                     </div>
@@ -344,14 +348,18 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                                                             <span className="text-sm font-bold text-stone-600">Multiple Answers</span>
                                                         </label>
                                                     </div>
-                                                    <div className="mb-12">
-                                                        <div className="bg-stone-50 rounded-xl border border-stone-200 focus-within:border-orange-400 overflow-hidden">
+                                                    <div className="mb-4">
+                                                        <div
+                                                            className="bg-stone-50 rounded-xl border border-stone-200 focus-within:border-orange-400 overflow-hidden"
+                                                            style={{ resize: 'vertical', overflow: 'auto', minHeight: '120px', height: '180px', maxHeight: '60vh' }}
+                                                        >
                                                             <ReactQuill
                                                                 theme="snow"
                                                                 value={quiz.question || ''}
                                                                 onChange={(content) => handleUpdateQuiz(sIndex, qIndex, 'question', content)}
                                                                 modules={QUILL_MODULES}
-                                                                className="h-32 mb-12 bg-orange-50/10"
+                                                                style={{ height: 'calc(100% - 42px)' }}
+                                                                className="bg-orange-50/10"
                                                             />
                                                         </div>
                                                     </div>
