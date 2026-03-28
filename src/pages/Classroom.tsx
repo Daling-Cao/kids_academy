@@ -344,17 +344,27 @@ export default function Classroom({ user }: { user: User }) {
 
                   <div className="mt-8 flex justify-end">
                     <button
-                      onClick={() => handleCompleteSegment(segId)}
-                      disabled={isSegCompleted || (segQuizzes.length > 0 && (!showResults || !isAllCorrect))}
-                      className={`flex items-center gap-3 px-8 py-4 rounded-2xl font-bold text-lg transition-all shadow-md ${isSegCompleted
+                      onClick={async () => {
+                        if (publishedSegments.length === 1) {
+                          await handleCompleteSegment(segId);
+                          await handleCompleteProject();
+                        } else {
+                          handleCompleteSegment(segId);
+                        }
+                      }}
+                      disabled={(publishedSegments.length === 1 ? completed : isSegCompleted) || (segQuizzes.length > 0 && (!showResults || !isAllCorrect))}
+                      className={`flex items-center gap-3 px-8 py-4 rounded-2xl font-bold text-lg transition-all shadow-md ${
+                        (publishedSegments.length === 1 ? completed : isSegCompleted)
                           ? 'bg-green-500 text-white cursor-default'
                           : (segQuizzes.length === 0 || (showResults && isAllCorrect))
                             ? 'bg-blue-500 text-white hover:bg-blue-600 hover:scale-105'
                             : 'bg-stone-100 text-stone-400 border-2 border-stone-200 cursor-not-allowed hidden'
                         }`}
                     >
-                      {isSegCompleted ? <CheckSquare size={24} /> : <Square size={24} />}
-                      {isSegCompleted ? t.segmentCompleted : t.completeSegment}
+                      {(publishedSegments.length === 1 ? completed : isSegCompleted) ? <CheckSquare size={24} /> : <Square size={24} />}
+                      {(publishedSegments.length === 1 ? completed : isSegCompleted)
+                        ? (publishedSegments.length === 1 ? t.fullyCompleted : t.segmentCompleted)
+                        : (publishedSegments.length === 1 ? t.markCompleted : t.completeSegment)}
                     </button>
                   </div>
                 </div>
@@ -366,27 +376,29 @@ export default function Classroom({ user }: { user: User }) {
             )}
           </div>
 
-          <div className="border-t-4 border-orange-100 mt-16 pt-12 flex flex-col items-center justify-center">
-            <h3 className="text-2xl font-bold text-stone-700 mb-6 flex items-center gap-2">
-              <CheckSquare className="text-orange-500" /> {t.overallProgress}
-            </h3>
-            <button
-              onClick={handleCompleteProject}
-              disabled={completed || !allSegmentsCompleted || publishedSegments.length === 0}
-              className={`flex items-center gap-4 px-10 py-5 rounded-3xl font-extrabold text-2xl transition-all shadow-xl ${completed
-                  ? 'bg-green-500 text-white cursor-default'
-                  : allSegmentsCompleted && publishedSegments.length > 0
-                    ? 'bg-gradient-to-r from-orange-400 to-orange-500 text-white hover:from-orange-500 hover:to-orange-600 hover:scale-105'
-                    : 'bg-stone-100 text-stone-400 border-4 border-stone-200 cursor-not-allowed'
-                }`}
-            >
-              {completed ? <CheckSquare size={36} /> : <Square size={36} />}
-              {completed ? t.fullyCompleted : t.markCompleted}
-            </button>
-            {!completed && !allSegmentsCompleted && publishedSegments.length > 0 && (
-              <p className="mt-4 text-stone-500 font-medium">{t.completeAllSegments}</p>
+            {publishedSegments.length > 1 && (
+              <div className="border-t-4 border-orange-100 mt-16 pt-12 flex flex-col items-center justify-center">
+                <h3 className="text-2xl font-bold text-stone-700 mb-6 flex items-center gap-2">
+                  <CheckSquare className="text-orange-500" /> {t.overallProgress}
+                </h3>
+                <button
+                  onClick={handleCompleteProject}
+                  disabled={completed || !allSegmentsCompleted || publishedSegments.length === 0}
+                  className={`flex items-center gap-4 px-10 py-5 rounded-3xl font-extrabold text-2xl transition-all shadow-xl ${completed
+                      ? 'bg-green-500 text-white cursor-default'
+                      : allSegmentsCompleted && publishedSegments.length > 0
+                        ? 'bg-gradient-to-r from-orange-400 to-orange-500 text-white hover:from-orange-500 hover:to-orange-600 hover:scale-105'
+                        : 'bg-stone-100 text-stone-400 border-4 border-stone-200 cursor-not-allowed'
+                    }`}
+                >
+                  {completed ? <CheckSquare size={36} /> : <Square size={36} />}
+                  {completed ? t.fullyCompleted : t.markCompleted}
+                </button>
+                {!completed && !allSegmentsCompleted && publishedSegments.length > 0 && (
+                  <p className="mt-4 text-stone-500 font-medium">{t.completeAllSegments}</p>
+                )}
+              </div>
             )}
-          </div>
         </div>
       </div>
       <SelectionPopup contentRef={contentRef} projectTitle={project.title} />
