@@ -85,6 +85,7 @@ const translations = {
     published: '已发布',
     unlockProject: '解锁项目',
     lockProject: '锁定项目',
+    reorderProject: '拖拽调整顺序',
     editProject: '编辑项目',
     deleteProject: '删除项目',
     
@@ -211,6 +212,7 @@ const translations = {
     published: 'Veröffentlicht',
     unlockProject: 'Projekt entsperren',
     lockProject: 'Projekt sperren',
+    reorderProject: 'Reihenfolge ändern',
     editProject: 'Projekt bearbeiten',
     deleteProject: 'Projekt löschen',
     

@@ -660,6 +660,28 @@ async function startServer() {
     res.json({ success: true, id: projectId });
   });
 
+
+  // Reorder projects (Teacher) — must be declared BEFORE PUT /:id to avoid route conflict
+  app.put('/api/projects/reorder', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { orders } = req.body;
+    if (!Array.isArray(orders) || orders.length === 0) {
+      res.status(400).json({ success: false, message: 'orders array is required' });
+      return;
+    }
+    try {
+      const updateOrder = db.prepare('UPDATE projects SET orderIndex = ? WHERE id = ?');
+      const reorderAll = db.transaction((items: { id: number; orderIndex: number }[]) => {
+        for (const item of items) {
+          updateOrder.run(item.orderIndex, item.id);
+        }
+      });
+      reorderAll(orders);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
   // Update project
   app.put('/api/projects/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
     const { id } = req.params;
