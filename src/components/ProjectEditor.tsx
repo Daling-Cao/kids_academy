@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import ReactQuill from 'react-quill-new';
+import ReactQuill, { Quill } from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
+import BlotFormatter from 'quill-blot-formatter';
 import ImageUpload from '../components/ImageUpload';
+
+// Register the image resize module globally (once)
+Quill.register('modules/blotFormatter', BlotFormatter);
 import type { Building, Quiz, ProjectSegment } from '../types';
 
 const QUILL_MODULES = {
@@ -13,6 +17,7 @@ const QUILL_MODULES = {
         ['link', 'image'],
         ['clean']
     ],
+    blotFormatter: {},
 };
 
 interface ProjectData {
