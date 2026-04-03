@@ -3,11 +3,14 @@ import { Plus, Trash2 } from 'lucide-react';
 import ReactQuill, { Quill } from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import BlotFormatter from 'quill-blot-formatter';
+import TableUp from 'quill-table-up';
+import 'quill-table-up/dist/index.css';
 import ImageUpload from '../components/ImageUpload';
-
-// Register the image resize module globally (once)
-Quill.register('modules/blotFormatter', BlotFormatter);
 import type { Building, Quiz, ProjectSegment } from '../types';
+
+// Register modules on the Quill singleton (runs once at module load)
+Quill.register('modules/blotFormatter', BlotFormatter);
+TableUp.register();
 
 const QUILL_MODULES = {
     toolbar: [
@@ -15,9 +18,11 @@ const QUILL_MODULES = {
         ['bold', 'italic', 'underline', 'strike'],
         [{ 'list': 'ordered' }, { 'list': 'bullet' }],
         ['link', 'image'],
+        [{ 'table': 'insert-table' }],
         ['clean']
     ],
     blotFormatter: {},
+    tableUp: {},
 };
 
 interface ProjectData {

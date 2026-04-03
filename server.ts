@@ -89,8 +89,17 @@ function studentSelfOnly(req: AuthRequest, res: Response, next: NextFunction): v
 // ─── Sanitize HTML content ──────────────────────────────────────────
 function sanitizeHtml(html: string): string {
   return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 's', 'h1', 'h2', 'h3', 'ol', 'ul', 'li', 'a', 'img', 'span', 'div', 'blockquote', 'pre', 'code'],
-    ALLOWED_ATTR: ['href', 'src', 'alt', 'class', 'style', 'target', 'width', 'height'],
+    ALLOWED_TAGS: [
+      'p', 'br', 'strong', 'em', 'u', 's', 'h1', 'h2', 'h3',
+      'ol', 'ul', 'li', 'a', 'img', 'span', 'div', 'blockquote', 'pre', 'code',
+      // Table elements
+      'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'colgroup', 'col',
+    ],
+    ALLOWED_ATTR: [
+      'href', 'src', 'alt', 'class', 'style', 'target', 'width', 'height',
+      // Table attributes
+      'colspan', 'rowspan', 'align', 'valign', 'border', 'cellpadding', 'cellspacing',
+    ],
   });
 }
 
