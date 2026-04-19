@@ -449,7 +449,7 @@ async function startServer() {
 
   // Get all students
   app.get('/api/users', authMiddleware, teacherOnly, (_req: AuthRequest, res: Response) => {
-    const users = db.prepare('SELECT id, username, role, name, avatar FROM users WHERE role = ?').all('student');
+    const users = db.prepare('SELECT id, username, role, name, avatar, coins FROM users WHERE role = ?').all('student');
     res.json(users);
   });
 

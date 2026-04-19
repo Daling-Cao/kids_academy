@@ -118,6 +118,8 @@ export default function StudentsTab() {
             });
             const data = await res.json();
             if (data.success) {
+                fetchStudents();
+                setSelectedStudent((prev: any) => prev ? { ...prev, coins: data.coins } : prev);
                 alert(`Successfully adjusted coins by ${amount}.`);
             } else {
                 alert(data.message || 'Failed to adjust coins.');
