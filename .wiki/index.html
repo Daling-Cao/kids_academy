@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>kids-academy - Project Wiki</title>
+<style>
+:root[data-theme="light"] {
+  --bg-primary: #ffffff; --bg-secondary: #f7f8fa; --bg-sidebar: #fbfbfc;
+  --text-primary: #1a1a2e; --text-secondary: #5c5c7a; --text-muted: #9090a7;
+  --border: #e8e8ef; --accent: #4f46e5; --accent-light: #eef2ff;
+  --code-bg: #f4f4f8; --code-text: #d63384; --table-stripe: #f9f9fc;
+  --sidebar-w: 280px; --shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+:root[data-theme="dark"] {
+  --bg-primary: #1a1b26; --bg-secondary: #1e1f2e; --bg-sidebar: #16171f;
+  --text-primary: #c8cad8; --text-secondary: #8b8da3; --text-muted: #5c5e72;
+  --border: #2e3044; --accent: #818cf8; --accent-light: #1e1f3a;
+  --code-bg: #222336; --code-text: #f0a8c8; --table-stripe: #1e1f30;
+  --sidebar-w: 280px; --shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC",sans-serif;line-height:1.6;background:var(--bg-primary);color:var(--text-primary);display:flex}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.sidebar{position:fixed;left:0;top:0;width:var(--sidebar-w);height:100vh;background:var(--bg-sidebar);border-right:1px solid var(--border);overflow-y:auto;z-index:100;display:flex;flex-direction:column;transition:transform .3s ease}
+.sidebar-header{padding:20px 20px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.sidebar-header h2{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sidebar-nav{list-style:none;padding:12px 0;flex:1}
+.sidebar-nav li a{display:block;padding:8px 20px;font-size:14px;color:var(--text-secondary);text-decoration:none;border-left:3px solid transparent;transition:all .2s}
+.sidebar-nav li a:hover{color:var(--accent);background:var(--accent-light)}
+.sidebar-nav li a.active{color:var(--accent);background:var(--accent-light);border-left-color:var(--accent);font-weight:600}
+.sidebar-nav li a.sub{padding-left:36px;font-size:13px}
+.sidebar-footer{padding:12px 20px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted)}
+.theme-toggle{background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:4px 8px;color:var(--text-secondary);font-size:16px;transition:all .2s}
+.theme-toggle:hover{border-color:var(--accent);color:var(--accent)}
+[data-theme="light"] .icon-sun{display:none}
+[data-theme="dark"] .icon-moon{display:none}
+.mobile-menu{display:none;position:fixed;top:12px;left:12px;z-index:200;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:8px 12px;cursor:pointer;color:var(--text-primary);font-size:18px}
+.content{margin-left:var(--sidebar-w);padding:40px 60px;max-width:1000px;width:100%}
+.section{margin-bottom:48px;scroll-margin-top:24px}
+h1{font-size:2em;font-weight:700;margin-bottom:8px}
+h2{font-size:1.5em;font-weight:600;margin-top:40px;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+h3{font-size:1.15em;font-weight:600;margin-top:24px;margin-bottom:12px}
+h4{font-size:1em;font-weight:600;margin-top:16px;margin-bottom:8px;color:var(--text-secondary)}
+p{margin-bottom:12px}
+.desc{font-size:16px;color:var(--text-secondary);line-height:1.7;margin-bottom:24px}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin:20px 0}
+.stat-card{background:var(--bg-secondary);padding:16px 20px;border-radius:8px;border:1px solid var(--border)}
+.stat-card .label{font-size:12px;text-transform:uppercase;color:var(--text-muted);letter-spacing:.5px;margin-bottom:4px}
+.stat-card .value{font-size:22px;font-weight:700;color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:14px;margin:16px 0}
+th{text-align:left;padding:10px 12px;background:var(--bg-secondary);border-bottom:2px solid var(--border);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-secondary)}
+td{padding:10px 12px;border-bottom:1px solid var(--border)}
+tr:nth-child(even) td{background:var(--table-stripe)}
+td code{background:var(--code-bg);color:var(--code-text);padding:1px 5px;border-radius:3px;font-size:12px}
+code{background:var(--code-bg);color:var(--code-text);padding:2px 6px;border-radius:4px;font-size:13px;font-family:"Cascadia Code","Fira Code",Consolas,monospace}
+pre{background:var(--code-bg);padding:16px;border-radius:8px;overflow-x:auto;margin:16px 0;font-size:13px;line-height:1.5}
+pre code{background:none;padding:0;color:var(--text-primary)}
+.collapsible{cursor:pointer;user-select:none;display:flex;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+.collapsible::before{content:"\25B6";font-size:10px;margin-right:10px;transition:transform .2s;color:var(--text-muted)}
+.collapsible.open::before{transform:rotate(90deg)}
+.collapsible-body{max-height:0;overflow:hidden;transition:max-height .3s ease}
+.collapsible-body.open{max-height:none;overflow:visible}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.badge-green{background:#d1fae5;color:#065f46}
+.badge-blue{background:#dbeafe;color:#1e40af}
+.badge-yellow{background:#fef3c7;color:#92400e}
+.badge-red{background:#fee2e2;color:#991b1b}
+.badge-purple{background:#ede9fe;color:#5b21b6}
+[data-theme="dark"] .badge-green{background:#064e3b;color:#6ee7b7}
+[data-theme="dark"] .badge-blue{background:#1e3a5f;color:#93c5fd}
+[data-theme="dark"] .badge-yellow{background:#78350f;color:#fcd34d}
+[data-theme="dark"] .badge-red{background:#7f1d1d;color:#fca5a5}
+[data-theme="dark"] .badge-purple{background:#3b0764;color:#c4b5fd}
+.dep-graph{background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:20px;font-family:monospace;font-size:13px;line-height:1.4;white-space:pre;overflow-x:auto}
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
+  .content{margin-left:0;padding:20px 16px}
+  .mobile-menu{display:block}
+  .stat-grid{grid-template-columns:1fr 1fr}
+}
+@media print{
+  .sidebar,.mobile-menu,.theme-toggle{display:none!important}
+  .content{margin-left:0;max-width:100%}
+}
+.mermaid{background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:20px;margin:16px 0;overflow-x:auto}
+.mermaid svg{max-width:100%}
+</style>
+</head>
+<body>
+<button class="mobile-menu" onclick="toggleSidebar()">&#9776;</button>
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <h2>kids-academy</h2>
+    <button class="theme-toggle" onclick="toggleTheme()">
+      <span class="icon-sun">&#9728;&#65039;</span><span class="icon-moon">&#127769;</span>
+    </button>
+  </div>
+  <ul class="sidebar-nav" id="sidebarNav">
+    <li><a href="#overview">项目总览</a></li>
+    <li><a href="#architecture">架构分析</a></li>
+    <li><a href="#dependencies">依赖关系</a></li>
+    <li><a href="#modules">模块结构</a></li>
+    <li><a href="#use-cases">用例分析</a></li>
+    <li><a href="#api">API 接口</a></li>
+    <li><a href="#config">配置说明</a></li>
+    <li><a href="#entry-points">入口点</a></li>
+    <li><a href="#patterns">代码模式</a></li>
+  </ul>
+  <div class="sidebar-footer">Generated 2026-04-05 22:13</div>
+</nav>
+<main class="content">
+<section class="section" id="overview">
+  <h1>kids-academy</h1>
+  <p class="desc">KidsAcademy is a modern, gamified learning platform designed for kids. It combines interactive lessons, quizzes, and a reward system to make learning engaging and fun.</p>
+  <div class="stat-grid">
+    <div class="stat-card"><div class="label">语言</div><div class="value">JavaScript/TypeScript</div></div>
+    <div class="stat-card"><div class="label">构建系统</div><div class="value">npm</div></div>
+    <div class="stat-card"><div class="label">模块数</div><div class="value">0</div></div>
+    <div class="stat-card"><div class="label">项目类型</div><div class="value">Node.js</div></div>
+  </div>
+  <h2>技术栈</h2>
+  <table>
+    <thead><tr><th>类别</th><th>技术</th></tr></thead>
+    <tbody>
+      <tr><td>语言</td><td>JavaScript/TypeScript</td></tr>
+      <tr><td>构建系统</td><td>npm</td></tr>
+      <tr><td>项目类型</td><td>Node.js</td></tr>
+      <tr><td>框架</td><td>React</td></tr>
+    </tbody>
+  </table>
+</section>
+<section class="section" id="architecture">
+  <h2>架构分析</h2>
+  <pre class="dep-graph">  ┌─ Interface            │ api</pre>
+  <h3>层级结构</h3>
+  <table>
+    <thead><tr><th>层级</th><th>目录</th><th>职责</th></tr></thead>
+    <tbody>
+      <tr><td>Interface</td><td><code>api</code></td><td>public APIs, SPIs, contract interfaces</td></tr>
+    </tbody>
+  </table>
+</section>
+<section class="section" id="dependencies">
+  <h2>依赖关系</h2>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">运行时依赖 (15)</h3>
+  <div class="collapsible-body">
+    <table>
+      <thead><tr><th>依赖</th><th>版本</th><th>Scope</th></tr></thead>
+      <tbody>
+      <tr><td><code>bcryptjs</code></td><td>^3.0.3</td><td><span class="badge badge-blue">runtime</span></td></tr>
+      <tr><td><code>better-sqlite3</code></td><td>^12.4.1</td><td><span class="badge badge-blue">runtime</span></td></tr>
+      <tr><td><code>dotenv</code></td><td>^17.2.3</td><td><span class="badge badge-blue">runtime</span></td></tr>
+      <tr><td><code>express</code></td><td>^4.21.2</td><td><span class="badge badge-blue">runtime</span></td></tr>
+      <tr><td><code>isomorphic-dompurify</code></td><td>^3.0.0</td><td><span class="badge badge-blue">runtime</span></td></tr>
+      <tr><td><code>jsonwebtoken</code></td><td>^9.0.3</td><td><span class="badge badge-blue">runtime</span></td></tr>
+      <tr><td><code>lucide-react</code></td><td>^0.546.0</td><td><span class="badge badge-blue">runtime</span></td></tr>
+      <tr><td><code>motion</code></td><td>^12.23.24</td><td><span class="badge badge-blue">runtime</span></td></tr>
+      <tr><td><code>multer</code></td><td>^2.1.1</td><td><span class="badge badge-blue">runtime</span></td></tr>
+      <tr><td><code>quill-blot-formatter</code></td><td>^1.0.5</td><td><span class="badge badge-blue">runtime</span></td></tr>
+      <tr><td><code>quill-table-up</code></td><td>^3.5.0</td><td><span class="badge badge-blue">runtime</span></td></tr>
+      <tr><td><code>react</code></td><td>^19.0.0</td><td><span class="badge badge-blue">runtime</span></td></tr>
+      <tr><td><code>react-dom</code></td><td>^19.0.0</td><td><span class="badge badge-blue">runtime</span></td></tr>
+      <tr><td><code>react-quill-new</code></td><td>^3.7.0</td><td><span class="badge badge-blue">runtime</span></td></tr>
+      <tr><td><code>react-router-dom</code></td><td>^7.13.1</td><td><span class="badge badge-blue">runtime</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">开发/测试依赖 (15)</h3>
+  <div class="collapsible-body">
+    <table>
+      <thead><tr><th>依赖</th><th>版本</th><th>Scope</th></tr></thead>
+      <tbody>
+      <tr><td><code>@tailwindcss/typography</code></td><td>^0.5.19</td><td><span class="badge badge-yellow">dev</span></td></tr>
+      <tr><td><code>@tailwindcss/vite</code></td><td>^4.1.14</td><td><span class="badge badge-yellow">dev</span></td></tr>
+      <tr><td><code>@types/bcryptjs</code></td><td>^2.4.6</td><td><span class="badge badge-yellow">dev</span></td></tr>
+      <tr><td><code>@types/better-sqlite3</code></td><td>^7.6.13</td><td><span class="badge badge-yellow">dev</span></td></tr>
+      <tr><td><code>@types/express</code></td><td>^4.17.21</td><td><span class="badge badge-yellow">dev</span></td></tr>
+      <tr><td><code>@types/jsonwebtoken</code></td><td>^9.0.10</td><td><span class="badge badge-yellow">dev</span></td></tr>
+      <tr><td><code>@types/multer</code></td><td>^2.1.0</td><td><span class="badge badge-yellow">dev</span></td></tr>
+      <tr><td><code>@types/node</code></td><td>^22.14.0</td><td><span class="badge badge-yellow">dev</span></td></tr>
+      <tr><td><code>@vitejs/plugin-react</code></td><td>^5.0.4</td><td><span class="badge badge-yellow">dev</span></td></tr>
+      <tr><td><code>autoprefixer</code></td><td>^10.4.21</td><td><span class="badge badge-yellow">dev</span></td></tr>
+      <tr><td><code>cross-env</code></td><td>^10.1.0</td><td><span class="badge badge-yellow">dev</span></td></tr>
+      <tr><td><code>tailwindcss</code></td><td>^4.1.14</td><td><span class="badge badge-yellow">dev</span></td></tr>
+      <tr><td><code>tsx</code></td><td>^4.21.0</td><td><span class="badge badge-yellow">dev</span></td></tr>
+      <tr><td><code>typescript</code></td><td>~5.8.2</td><td><span class="badge badge-yellow">dev</span></td></tr>
+      <tr><td><code>vite</code></td><td>^6.2.0</td><td><span class="badge badge-yellow">dev</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+<section class="section" id="modules">
+  <h2>模块结构</h2>
+  <p class="desc">未检测到子模块（或为单模块项目）</p>
+</section>
+<section class="section" id="use-cases">
+  <h2>用例分析</h2>
+  <p class="desc">检测到 44 个用例</p>
+  <table>
+    <thead><tr><th>用例</th><th>类型</th><th>描述</th><th>文件</th></tr></thead>
+    <tbody>
+      <tr><td><strong>POST /api/login</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>POST /api/upload</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>PUT /api/profile</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>GET /api/profile</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>PUT /api/profile/password</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>POST /api/messages</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>GET /api/messages</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>PUT /api/messages/:id/reply</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>PUT /api/messages/:id/read</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>DELETE /api/messages/:id</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>GET /api/messages/mine</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>GET /api/student/buildings/:userId</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>GET /api/student/buildings/:buildingId/projects/:userId</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>POST /api/student/projects/:projectId/start</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>POST /api/student/projects/:projectId/complete</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>GET /api/projects/:id</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>GET /api/student/projects/:projectId/progress/:userId</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>POST /api/student/segments/:segmentId/complete</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>GET /api/users</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>POST /api/users</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>PUT /api/users/:id</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>DELETE /api/users/:id</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>GET /api/users/:id/progress</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>PUT /api/users/:id/progress/:projectId</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>GET /api/buildings</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>GET /api/buildings/:id</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>GET /api/users/:id/buildings</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>PUT /api/users/:id/buildings/:buildingId</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>POST /api/buildings</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>PUT /api/buildings/:id</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>DELETE /api/buildings/:id</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>GET /api/projects</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>PUT /api/projects/:id/lock</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>POST /api/projects</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>PUT /api/projects/reorder</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>PUT /api/projects/:id</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>DELETE /api/projects/:id</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>GET /api/ranks</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>GET /api/student/coins/:userId</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>POST /api/ranks</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>PUT /api/ranks/:id</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>DELETE /api/ranks/:id</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>POST /api/users/:id/coins</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+      <tr><td><strong>GET *</strong></td><td><span class="badge badge-purple">Route Handler</span></td><td><code>Route handler in server.ts</code></td><td><code>server.ts</code></td></tr>
+    </tbody>
+  </table>
+  <h2 style="margin-top:48px">序列图</h2>
+  <p class="desc">基于静态代码分析自动生成的调用序列图</p>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">POST /api/login</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant bcrypt
+    participant jwt
+    participant app
+    participant upload
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+bcrypt: compareSync()
+    bcrypt-->>-Handler: response
+    Handler->>+jwt: sign()
+    jwt-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler->>+upload: single()
+    upload-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">POST /api/upload</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant upload
+    participant app
+    participant db
+    User->>+Handler: request
+    Handler->>+upload: single()
+    upload-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">PUT /api/profile</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    participant bcrypt
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler->>+bcrypt: compareSync()
+    bcrypt-->>-Handler: response
+    Handler->>+bcrypt: hashSync()
+    bcrypt-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">GET /api/profile</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    participant bcrypt
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler->>+bcrypt: compareSync()
+    bcrypt-->>-Handler: response
+    Handler->>+bcrypt: hashSync()
+    bcrypt-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">PUT /api/profile/password</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant bcrypt
+    participant app
+    participant content
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+bcrypt: compareSync()
+    bcrypt-->>-Handler: response
+    Handler->>+bcrypt: hashSync()
+    bcrypt-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler->>+content: trim()
+    content-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">POST /api/messages</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant content
+    participant db
+    participant app
+    participant reply
+    User->>+Handler: request
+    Handler->>+content: trim()
+    content-->>-Handler: response
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler->>+reply: trim()
+    reply-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">GET /api/messages</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    participant reply
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler->>+reply: trim()
+    reply-->>-Handler: response
+    Handler->>+app: delete()
+    app-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">PUT /api/messages/:id/reply</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant reply
+    participant db
+    participant app
+    User->>+Handler: request
+    Handler->>+reply: trim()
+    reply-->>-Handler: response
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler->>+app: delete()
+    app-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">PUT /api/messages/:id/read</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    participant projects
+    participant progress
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: delete()
+    app-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+projects: map()
+    projects-->>-Handler: response
+    Handler->>+progress: find()
+    progress-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">DELETE /api/messages/:id</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    participant projects
+    participant progress
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+projects: map()
+    projects-->>-Handler: response
+    Handler->>+progress: find()
+    progress-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">GET /api/messages/mine</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    participant projects
+    participant progress
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+projects: map()
+    projects-->>-Handler: response
+    Handler->>+progress: find()
+    progress-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">GET /api/student/buildings/:userId</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    participant projects
+    participant progress
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+projects: map()
+    projects-->>-Handler: response
+    Handler->>+progress: find()
+    progress-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">GET /api/student/buildings/:buildingId/projects/:userId</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant projects
+    participant progress
+    participant app
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+projects: map()
+    projects-->>-Handler: response
+    Handler->>+progress: find()
+    progress-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">POST /api/student/projects/:projectId/start</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">POST /api/student/projects/:projectId/complete</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    participant segments
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+segments: forEach()
+    segments-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">GET /api/projects/:id</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant segments
+    participant app
+    participant segmentProgress
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+segments: forEach()
+    segments-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+segmentProgress: reduce()
+    segmentProgress-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">GET /api/student/projects/:projectId/progress/:userId</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant segmentProgress
+    participant app
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+segmentProgress: reduce()
+    segmentProgress-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">POST /api/student/segments/:segmentId/complete</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    participant bcrypt
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler->>+bcrypt: hashSync()
+    bcrypt-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">GET /api/users</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    participant bcrypt
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler->>+bcrypt: hashSync()
+    bcrypt-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler->>+app: delete()
+    app-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">POST /api/users</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant bcrypt
+    participant db
+    participant app
+    User->>+Handler: request
+    Handler->>+bcrypt: hashSync()
+    bcrypt-->>-Handler: response
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler->>+app: delete()
+    app-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">PUT /api/users/:id</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant bcrypt
+    participant db
+    participant app
+    User->>+Handler: request
+    Handler->>+bcrypt: hashSync()
+    bcrypt-->>-Handler: response
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: delete()
+    app-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">DELETE /api/users/:id</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">GET /api/users/:id/progress</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">PUT /api/users/:id/progress/:projectId</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">GET /api/buildings</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">GET /api/buildings/:id</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">GET /api/users/:id/buildings</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">PUT /api/users/:id/buildings/:buildingId</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler->>+app: delete()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">POST /api/buildings</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    participant segments
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler->>+app: delete()
+    app-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+segments: reduce()
+    segments-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">PUT /api/buildings/:id</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    participant segments
+    participant projects
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: delete()
+    app-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+segments: reduce()
+    segments-->>-Handler: response
+    Handler->>+projects: forEach()
+    projects-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">DELETE /api/buildings/:id</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    participant segments
+    participant projects
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+segments: reduce()
+    segments-->>-Handler: response
+    Handler->>+projects: forEach()
+    projects-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">GET /api/projects</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant segments
+    participant projects
+    participant app
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+segments: reduce()
+    segments-->>-Handler: response
+    Handler->>+projects: forEach()
+    projects-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">PUT /api/projects/:id/lock</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    participant segments
+    participant insertSegment
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler->>+segments: forEach()
+    segments-->>-Handler: response
+    Handler->>+insertSegment: run()
+    insertSegment-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">POST /api/projects</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant segments
+    participant insertSegment
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+segments: forEach()
+    segments-->>-Handler: response
+    Handler->>+insertSegment: run()
+    insertSegment-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">PUT /api/projects/reorder</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant updateOrder
+    participant app
+    participant segments
+    participant existingSegs
+    participant incomingIds
+    participant toDelete
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+db: transaction()
+    db-->>-Handler: response
+    Handler->>+updateOrder: run()
+    updateOrder-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler->>+segments: map()
+    segments-->>-Handler: response
+    Handler->>+existingSegs: filter()
+    existingSegs-->>-Handler: response
+    Handler->>+incomingIds: includes()
+    incomingIds-->>-Handler: response
+    Handler->>+toDelete: map()
+    toDelete-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">PUT /api/projects/:id</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant segments
+    participant existingSegs
+    participant incomingIds
+    participant toDelete
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+segments: map()
+    segments-->>-Handler: response
+    Handler->>+existingSegs: filter()
+    existingSegs-->>-Handler: response
+    Handler->>+incomingIds: includes()
+    incomingIds-->>-Handler: response
+    Handler->>+toDelete: map()
+    toDelete-->>-Handler: response
+    Handler->>+segments: forEach()
+    segments-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">DELETE /api/projects/:id</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">GET /api/ranks</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">GET /api/student/coins/:userId</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">POST /api/ranks</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: put()
+    app-->>-Handler: response
+    Handler->>+app: delete()
+    app-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">PUT /api/ranks/:id</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    participant express
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: delete()
+    app-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler->>+app: use()
+    app-->>-Handler: response
+    Handler->>+express: static()
+    express-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">DELETE /api/ranks/:id</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    participant express
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: post()
+    app-->>-Handler: response
+    Handler->>+app: use()
+    app-->>-Handler: response
+    Handler->>+express: static()
+    express-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+app: listen()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">POST /api/users/:id/coins</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant db
+    participant app
+    participant express
+    User->>+Handler: request
+    Handler->>+db: prepare()
+    db-->>-Handler: response
+    Handler->>+app: use()
+    app-->>-Handler: response
+    Handler->>+express: static()
+    express-->>-Handler: response
+    Handler->>+app: get()
+    app-->>-Handler: response
+    Handler->>+app: listen()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+  <h3 class="collapsible" onclick="toggleCollapse(this)">GET *</h3>
+  <div class="collapsible-body">
+    <p class="desc">Route handler in server.ts</p>
+    <pre class="mermaid">sequenceDiagram
+    actor User
+    participant Handler
+    participant app
+    User->>+Handler: request
+    Handler->>+app: use()
+    app-->>-Handler: response
+    Handler->>+app: listen()
+    app-->>-Handler: response
+    Handler-->>-User: response</pre>
+  </div>
+</section>
+<section class="section" id="api">
+  <h2>API 接口</h2>
+  <p class="desc">未检测到 REST API 端点</p>
+</section>
+<section class="section" id="config">
+  <h2>配置说明</h2>
+  <table>
+    <thead><tr><th>文件</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td><code>.env.example</code></td><td>Environment variables template</td></tr>
+      <tr><td><code>tsconfig.json</code></td><td>TypeScript config</td></tr>
+    </tbody>
+  </table>
+</section>
+<section class="section" id="entry-points">
+  <h2>入口点</h2>
+  <p class="desc">未检测到入口点</p>
+</section>
+<section class="section" id="patterns">
+  <h2>代码模式</h2>
+  <p class="desc">未检测到常见设计模式</p>
+</section>
+</main>
+<script>
+function toggleTheme(){var h=document.documentElement,t=h.getAttribute("data-theme")==="light"?"dark":"light";h.setAttribute("data-theme",t);localStorage.setItem("wiki-theme",t)}
+(function(){var s=localStorage.getItem("wiki-theme");if(s)document.documentElement.setAttribute("data-theme",s)})();
+var obs=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){document.querySelectorAll(".sidebar-nav a").forEach(function(a){a.classList.remove("active")});var a=document.querySelector('.sidebar-nav a[href="#'+e.target.id+'"]');if(a)a.classList.add("active")}})},{rootMargin:"-20% 0px -75% 0px"});
+document.querySelectorAll(".section").forEach(function(s){obs.observe(s)});
+document.querySelectorAll(".sidebar-nav a").forEach(function(a){a.addEventListener("click",function(e){e.preventDefault();var t=document.querySelector(this.getAttribute("href"));if(t)t.scrollIntoView({behavior:"smooth"});document.getElementById("sidebar").classList.remove("open")})});
+function toggleCollapse(el){el.classList.toggle("open");var body=el.nextElementSibling;body.classList.toggle("open")}
+function toggleSidebar(){document.getElementById("sidebar").classList.toggle("open")}
+</script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+function initMermaid(){
+  var theme=document.documentElement.getAttribute("data-theme")==="dark"?"dark":"default";
+  mermaid.initialize({startOnLoad:false,theme:theme,securityLevel:'loose',sequence:{useMaxWidth:true,wrap:true}});
+  mermaid.run({querySelector:'.mermaid'});
+}
+initMermaid();
+var origToggle=window.toggleTheme;
+window.toggleTheme=function(){origToggle();setTimeout(function(){initMermaid()},100)};
+</script>
+</body>
+</html>

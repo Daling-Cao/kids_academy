@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),
+      'quill': path.resolve(__dirname, 'node_modules/react-quill-new/node_modules/quill'),
     },
   },
 });

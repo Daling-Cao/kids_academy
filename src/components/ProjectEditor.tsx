@@ -1,29 +1,219 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { marked } from 'marked';
 import { Plus, Trash2 } from 'lucide-react';
 import ReactQuill, { Quill } from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import BlotFormatter from 'quill-blot-formatter';
-import TableUp from 'quill-table-up';
-import 'quill-table-up/dist/index.css';
+import TableUp, { TableMenuContextmenu, TableResizeLine, TableSelection } from 'quill-table-up';
+import 'quill-table-up/index.css';
 import ImageUpload from '../components/ImageUpload';
 import type { Building, Quiz, ProjectSegment } from '../types';
+
+// Register font whitelist
+const Font = Quill.import('formats/font') as any;
+Font.whitelist = ['arial', 'georgia', 'times', 'courier', 'verdana', 'comic'];
+Quill.register(Font, true);
+
+// Register font size whitelist
+const Size = Quill.import('attributors/style/size') as any;
+Size.whitelist = ['10px', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '40px', '48px'];
+Quill.register(Size, true);
 
 // Register modules on the Quill singleton (runs once at module load)
 Quill.register('modules/blotFormatter', BlotFormatter);
 TableUp.register();
+Quill.register({ [`modules/${TableUp.moduleName}`]: TableUp }, true);
 
-const QUILL_MODULES = {
-    toolbar: [
-        [{ 'header': [1, 2, 3, false] }],
-        ['bold', 'italic', 'underline', 'strike'],
-        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-        ['link', 'image'],
-        [{ 'table': 'insert-table' }],
-        ['clean']
-    ],
-    blotFormatter: {},
-    tableUp: {},
-};
+let editorSeq = 0;
+
+function HtmlEditor({ value, onChange, style, className }: {
+    value: string;
+    onChange: (content: string) => void;
+    style?: React.CSSProperties;
+    className?: string;
+}) {
+    const quillRef = useRef<ReactQuill>(null);
+    const toolbarId = useRef(`ql-tb-${++editorSeq}`).current;
+    const triggerRef = useRef<HTMLSpanElement>(null);
+    const mdInputRef = useRef<HTMLInputElement>(null);
+    const [showPicker, setShowPicker] = useState(false);
+    const [rows, setRows] = useState(3);
+    const [cols, setCols] = useState(3);
+    const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
+
+    const modules = useMemo(() => ({
+        toolbar: { container: `#${toolbarId}` },
+        blotFormatter: {},
+        [TableUp.moduleName]: {
+            modules: [
+                { module: TableSelection },
+                { module: TableResizeLine },
+                { module: TableMenuContextmenu },
+            ],
+        },
+    }), [toolbarId]);
+
+    const openPicker = () => {
+        if (triggerRef.current) {
+            const r = triggerRef.current.getBoundingClientRect();
+            setPickerPos({ top: r.bottom + 4, left: r.left });
+        }
+        setShowPicker(v => !v);
+    };
+
+    const insertTable = () => {
+        const quill = quillRef.current?.getEditor();
+        if (!quill) return;
+        (quill.getModule(TableUp.moduleName) as any).insertTable(rows, cols);
+        setShowPicker(false);
+        setRows(3);
+        setCols(3);
+    };
+
+    const importMarkdown = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            const html = marked.parse(reader.result as string, { async: false }) as string;
+            onChange(html);
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+    };
+
+    useEffect(() => {
+        if (!showPicker) return;
+        const close = () => setShowPicker(false);
+        const t = setTimeout(() => document.addEventListener('click', close), 50);
+        return () => { clearTimeout(t); document.removeEventListener('click', close); };
+    }, [showPicker]);
+
+    return (
+        <div style={{ position: 'relative' }}>
+            <div id={toolbarId}>
+                <span className="ql-formats">
+                    <select className="ql-font" defaultValue="">
+                        <option value="" />
+                        <option value="arial" />
+                        <option value="georgia" />
+                        <option value="times" />
+                        <option value="courier" />
+                        <option value="verdana" />
+                        <option value="comic" />
+                    </select>
+                </span>
+                <span className="ql-formats">
+                    <select className="ql-size" defaultValue="">
+                        <option value="" />
+                        <option value="10px" />
+                        <option value="12px" />
+                        <option value="14px" />
+                        <option value="16px" />
+                        <option value="18px" />
+                        <option value="20px" />
+                        <option value="24px" />
+                        <option value="28px" />
+                        <option value="32px" />
+                        <option value="40px" />
+                        <option value="48px" />
+                    </select>
+                </span>
+                <span className="ql-formats">
+                    <select className="ql-header" defaultValue="">
+                        <option value="1" /><option value="2" /><option value="3" /><option value="" />
+                    </select>
+                </span>
+                <span className="ql-formats">
+                    <button className="ql-bold" /><button className="ql-italic" />
+                    <button className="ql-underline" /><button className="ql-strike" />
+                </span>
+                <span className="ql-formats">
+                    <button className="ql-list" value="ordered" />
+                    <button className="ql-list" value="bullet" />
+                </span>
+                <span className="ql-formats">
+                    <button className="ql-link" /><button className="ql-image" />
+                </span>
+                <span className="ql-formats" ref={triggerRef}>
+                    <button
+                        type="button"
+                        onClick={openPicker}
+                        title="Insert Table"
+                        style={{ width: 'auto', padding: '2px 6px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                        ⊞ Table
+                    </button>
+                </span>
+                <span className="ql-formats">
+                    <button className="ql-clean" />
+                </span>
+                <span className="ql-formats">
+                    <button
+                        type="button"
+                        onClick={() => mdInputRef.current?.click()}
+                        title="Import Markdown file"
+                        style={{ width: 'auto', padding: '2px 6px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                        ↑ MD
+                    </button>
+                    <input
+                        ref={mdInputRef}
+                        type="file"
+                        accept=".md,.markdown,text/markdown"
+                        style={{ display: 'none' }}
+                        onChange={importMarkdown}
+                    />
+                </span>
+            </div>
+            <ReactQuill
+                ref={quillRef}
+                theme="snow"
+                value={value}
+                onChange={onChange}
+                modules={modules}
+                style={style}
+                className={className}
+            />
+            {showPicker && createPortal(
+                <div
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                        position: 'fixed', top: pickerPos.top, left: pickerPos.left,
+                        zIndex: 9999, background: '#fff',
+                        border: '1px solid #e5e7eb', borderRadius: '10px',
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.13)',
+                        padding: '10px 14px',
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                        fontSize: '13px',
+                    }}
+                >
+                    <span style={{ color: '#6b7280' }}>行</span>
+                    <input type="number" value={rows}
+                        onChange={e => setRows(Math.max(1, Math.min(20, Number(e.target.value))))}
+                        min={1} max={20}
+                        style={{ width: '50px', padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: '6px', textAlign: 'center' }}
+                    />
+                    <span style={{ color: '#9ca3af' }}>×</span>
+                    <span style={{ color: '#6b7280' }}>列</span>
+                    <input type="number" value={cols}
+                        onChange={e => setCols(Math.max(1, Math.min(20, Number(e.target.value))))}
+                        min={1} max={20}
+                        style={{ width: '50px', padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: '6px', textAlign: 'center' }}
+                    />
+                    <button type="button" onClick={insertTable}
+                        style={{ padding: '4px 12px', background: '#f97316', color: '#fff', border: 'none', borderRadius: '7px', cursor: 'pointer', fontWeight: 600 }}
+                    >插入</button>
+                    <button type="button" onClick={() => setShowPicker(false)}
+                        style={{ padding: '4px 8px', background: '#f3f4f6', color: '#374151', border: 'none', borderRadius: '7px', cursor: 'pointer' }}
+                    >✕</button>
+                </div>,
+                document.body
+            )}
+        </div>
+    );
+}
 
 interface ProjectData {
     buildingId: number;
@@ -302,11 +492,9 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                                             className="bg-white rounded-xl border border-stone-300 focus-within:border-orange-400 overflow-hidden"
                                             style={{ resize: 'vertical', overflow: 'auto', minHeight: '200px', height: '320px', maxHeight: '80vh' }}
                                         >
-                                            <ReactQuill
-                                                theme="snow"
+                                            <HtmlEditor
                                                 value={seg[cField] || ''}
                                                 onChange={(content) => handleUpdateSegment(sIndex, cField, content)}
-                                                modules={QUILL_MODULES}
                                                 style={{ height: 'calc(100% - 42px)' }}
                                                 className="bg-orange-50/10"
                                             />
@@ -363,11 +551,9 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                                                             className="bg-stone-50 rounded-xl border border-stone-200 focus-within:border-orange-400 overflow-hidden"
                                                             style={{ resize: 'vertical', overflow: 'auto', minHeight: '120px', height: '180px', maxHeight: '60vh' }}
                                                         >
-                                                            <ReactQuill
-                                                                theme="snow"
+                                                            <HtmlEditor
                                                                 value={quiz.question || ''}
                                                                 onChange={(content) => handleUpdateQuiz(sIndex, qIndex, 'question', content)}
-                                                                modules={QUILL_MODULES}
                                                                 style={{ height: 'calc(100% - 42px)' }}
                                                                 className="bg-orange-50/10"
                                                             />

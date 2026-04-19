@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(python -m wikiskill .)",
+      "Bash(python -m wikiskill D:/dev/KidsAcademy/kids_academy)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(echo \"---EXIT: $?---\")",
+      "Bash(python -m wikiskill D:/dev/KidsAcademy/kids_academy --no-serve)",
+      "Bash(grep -o \"toolName=\\\\`[^']*\\\\`\\\\|toolName=['\\\\\"][^'\\\\\"]*['\\\\\"]\" D:/dev/KidsAcademy/kids_academy/node_modules/quill-table-up/dist/index.js)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(node -e \"const TableUp = require\\('./node_modules/quill-table-up/dist/index.js'\\); console.log\\('moduleName:', TableUp.default?.moduleName ?? TableUp.moduleName\\)\")",
+      "Bash(node -e \"import\\('./node_modules/quill-table-up/dist/index.js'\\).then\\(m => console.log\\('moduleName:', m.default?.moduleName, 'keys:', Object.keys\\(m\\).slice\\(0,5\\)\\)\\)\")",
+      "Bash(npm install *)"
+    ]
+  }
+}
