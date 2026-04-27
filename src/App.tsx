@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import ProfileSettingsModal from './components/ProfileSettingsModal';
+import { useI18n, setLanguage } from './i18n';
 import Login from './pages/Login';
 import StudentDashboard from './pages/StudentDashboard';
 import BuildingView from './pages/BuildingView';
@@ -28,6 +29,7 @@ export function authFetch(url: string, options: RequestInit = {}): Promise<Respo
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [showProfile, setShowProfile] = useState(false);
+  const { lang } = useI18n();
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -73,6 +75,13 @@ export default function App() {
                 className="px-4 py-2 bg-orange-100 text-orange-700 rounded-full shadow-sm hover:bg-orange-200 transition-colors font-medium text-sm sm:text-base hidden md:block"
               >
                 Profile
+              </button>
+              <button
+                onClick={() => setLanguage(lang === 'zh' ? 'de' : 'zh')}
+                className="px-3 py-2 bg-orange-100 text-orange-700 rounded-full shadow-sm hover:bg-orange-200 transition-colors font-medium text-sm"
+                title={lang === 'zh' ? 'Deutsch' : '中文'}
+              >
+                {lang === 'zh' ? '🇩🇪 DE' : '🇨🇳 中文'}
               </button>
               <button
                 onClick={handleLogout}

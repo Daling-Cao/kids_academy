@@ -257,7 +257,27 @@ const translations = {
   }
 };
 
+export type Language = 'zh' | 'de';
+
+function getStoredLanguage(): Language {
+  const stored = localStorage.getItem('language');
+  if (stored === 'zh' || stored === 'de') return stored;
+  return navigator.language.toLowerCase().startsWith('de') ? 'de' : 'zh';
+}
+
+export function setLanguage(lang: Language) {
+  localStorage.setItem('language', lang);
+  window.dispatchEvent(new CustomEvent('languageChange', { detail: lang }));
+}
+
 export function useI18n() {
-  const lang = navigator.language.toLowerCase().startsWith('de') ? 'de' : 'zh';
+  const [lang, setLang] = useState<Language>(getStoredLanguage);
+
+  useEffect(() => {
+    const handler = (e: Event) => setLang((e as CustomEvent<Language>).detail);
+    window.addEventListener('languageChange', handler);
+    return () => window.removeEventListener('languageChange', handler);
+  }, []);
+
   return { t: translations[lang], lang };
 }
