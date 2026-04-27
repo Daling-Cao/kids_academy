@@ -262,7 +262,7 @@ export type Language = 'zh' | 'de';
 function getStoredLanguage(): Language {
   const stored = localStorage.getItem('language');
   if (stored === 'zh' || stored === 'de') return stored;
-  return navigator.language.toLowerCase().startsWith('de') ? 'de' : 'zh';
+  return 'de';
 }
 
 export function setLanguage(lang: Language) {

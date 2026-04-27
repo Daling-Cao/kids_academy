@@ -22,7 +22,7 @@ export default function Classroom({ user }: { user: User }) {
   const [showCoinAnimation, setShowCoinAnimation] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  const lang = navigator.language.toLowerCase().startsWith('de') ? 'de' : 'zh';
+  const lang = 'de';
 
   useEffect(() => {
     setLoading(true);
@@ -256,7 +256,7 @@ export default function Classroom({ user }: { user: User }) {
                   
                   {sContent && (
                     <div
-                      className="prose prose-orange max-w-none mb-12 text-stone-700 leading-relaxed text-lg select-text"
+                      className="prose prose-orange max-w-none mb-12 text-stone-700 leading-relaxed text-lg select-text break-words overflow-hidden"
                       dangerouslySetInnerHTML={{ __html: sanitize(sContent) }}
                     />
                   )}
