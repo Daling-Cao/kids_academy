@@ -133,7 +133,15 @@ export default function Classroom({ user }: { user: User }) {
     });
   };
 
-  const sanitize = (html: string) => DOMPurify.sanitize(html);
+  const sanitize = (html: string) => {
+    const cleaned = DOMPurify.sanitize(html);
+    // Replace non-breaking spaces and other whitespace chars that prevent line breaks
+    return cleaned
+      .replace(/&nbsp;/g, ' ')
+      .replace(/ /g, ' ')
+      .replace(/ /g, ' ')
+      .replace(/ /g, ' ');
+  };
 
   if (loading) return <div className="text-center p-8 text-stone-500">{t.loading}</div>;
   if (error) return <div className="text-center p-8 text-red-500">{error}</div>;
@@ -256,7 +264,7 @@ export default function Classroom({ user }: { user: User }) {
                   
                   {sContent && (
                     <div
-                      className="prose prose-orange max-w-none mb-12 text-stone-700 leading-relaxed text-lg select-text break-words overflow-hidden"
+                      className="prose prose-orange max-w-none mb-12 text-stone-700 leading-relaxed text-lg select-text classroom-content"
                       dangerouslySetInnerHTML={{ __html: sanitize(sContent) }}
                     />
                   )}

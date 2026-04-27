@@ -67,3 +67,20 @@
 .ql-snow .ql-picker.ql-font .ql-picker-label[data-value="comic"]::before,
 .ql-snow .ql-picker.ql-font .ql-picker-item[data-value="comic"]::before
   { content: 'Comic Sans'; font-family: 'Comic Sans MS', cursive; }
+
+/* ── Classroom content: prevent word/line overflow ── */
+.classroom-content,
+.classroom-content * {
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+  hyphens: none !important;
+  -webkit-hyphens: none !important;
+  max-width: 100% !important;
+}
+.classroom-content img,
+.classroom-content table,
+.classroom-content iframe {
+  max-width: 100% !important;
+  height: auto;
+}
