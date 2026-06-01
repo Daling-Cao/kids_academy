@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { MessageCircle, X, Send } from 'lucide-react';
 import { authFetch } from '../App';
 import type { User } from '../types';
+import EmojiPicker from './EmojiPicker';
+import { convertEmoticons } from '../utils/emoticons';
 
 interface MessageButtonProps {
     user: User;
@@ -13,10 +15,25 @@ export default function MessageButton({ user }: MessageButtonProps) {
     const [sending, setSending] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    const insertText = (text: string) => {
+        const el = textareaRef.current;
+        if (!el) { setContent(c => c + text); return; }
+        const start = el.selectionStart;
+        const end = el.selectionEnd;
+        const newVal = content.slice(0, start) + text + content.slice(end);
+        setContent(newVal);
+        requestAnimationFrame(() => {
+            el.focus();
+            el.setSelectionRange(start + text.length, start + text.length);
+        });
+    };
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!content.trim()) return;
+        const finalContent = convertEmoticons(content.trim());
+        if (!finalContent) return;
         setSending(true);
         setError('');
         setSuccess(false);
@@ -24,7 +41,7 @@ export default function MessageButton({ user }: MessageButtonProps) {
         try {
             const res = await authFetch('/api/messages', {
                 method: 'POST',
-                body: JSON.stringify({ content }),
+                body: JSON.stringify({ content: finalContent }),
             });
             const data = await res.json();
             if (data.success) {
@@ -86,15 +103,21 @@ export default function MessageButton({ user }: MessageButtonProps) {
                             <form onSubmit={handleSend} className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-stone-600 mb-2">Your Message</label>
-                                    <textarea
-                                        value={content}
-                                        onChange={(e) => setContent(e.target.value)}
-                                        placeholder="Write your message here..."
-                                        rows={4}
-                                        maxLength={1000}
-                                        className="w-full px-4 py-3 rounded-xl border-2 border-orange-100 focus:border-orange-400 focus:outline-none transition-colors resize-none"
-                                        required
-                                    />
+                                    <div className="relative">
+                                        <textarea
+                                            ref={textareaRef}
+                                            value={content}
+                                            onChange={(e) => setContent(e.target.value)}
+                                            placeholder="Write your message here... (try :) or <3)"
+                                            rows={4}
+                                            maxLength={1000}
+                                            className="w-full px-4 py-3 rounded-xl border-2 border-orange-100 focus:border-orange-400 focus:outline-none transition-colors resize-none pb-10"
+                                            required
+                                        />
+                                        <div className="absolute bottom-2 left-2">
+                                            <EmojiPicker onInsert={insertText} />
+                                        </div>
+                                    </div>
                                     <p className="text-xs text-stone-400 text-right mt-1">{content.length}/1000</p>
                                 </div>
                                 {error && <p className="text-sm text-red-500">{error}</p>}

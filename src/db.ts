@@ -122,6 +122,14 @@ db.exec(`
     createdAt TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS custom_emojis (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    url TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'image',
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 // Migrate existing databases: Add name and avatar columns if they don't exist

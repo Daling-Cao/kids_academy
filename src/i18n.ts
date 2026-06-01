@@ -127,6 +127,18 @@ const translations = {
     writeReply: '写您的回复...',
     sending: '发送中...',
     markAsRead: '标为已读',
+
+    // Emoji
+    customEmojis: '自定义表情',
+    addEmoji: '添加表情',
+    emojiName: '表情名称',
+    deleteEmoji: '删除表情',
+    uploadEmojiImage: '上传图片 (PNG/GIF/WebP)',
+    orUnicodeEmoji: '或输入 Unicode 表情',
+    emojiNamePlaceholder: '如：开心、加油...',
+    manageEmojis: '管理表情',
+    noCustomEmojis: '还没有自定义表情',
+    insertEmoji: '插入表情',
   },
   de: {
     // General
@@ -254,6 +266,18 @@ const translations = {
     writeReply: 'Schreibe deine Antwort...',
     sending: 'Wird gesendet...',
     markAsRead: 'Als gelesen markieren',
+
+    // Emoji
+    customEmojis: 'Eigene Emojis',
+    addEmoji: 'Emoji hinzufügen',
+    emojiName: 'Emoji-Name',
+    deleteEmoji: 'Emoji löschen',
+    uploadEmojiImage: 'Bild hochladen (PNG/GIF/WebP)',
+    orUnicodeEmoji: 'Oder Unicode-Emoji eingeben',
+    emojiNamePlaceholder: 'z.B. happy, daumen...',
+    manageEmojis: 'Emojis verwalten',
+    noCustomEmojis: 'Noch keine eigenen Emojis',
+    insertEmoji: 'Emoji einfügen',
   }
 };
 

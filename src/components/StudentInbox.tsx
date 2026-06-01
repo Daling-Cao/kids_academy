@@ -84,7 +84,10 @@ export default function StudentInbox({ user }: StudentInboxProps) {
                                             <div className="text-xs text-stone-400 mb-2">
                                                 {new Date(msg.createdAt + 'Z').toLocaleString()}
                                             </div>
-                                            <p className="text-stone-700 text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                                            <div
+                                                className="text-stone-700 text-sm break-words [&_.inline-emoji]:inline [&_.inline-emoji]:h-[1.4em] [&_.inline-emoji]:align-middle"
+                                                dangerouslySetInnerHTML={{ __html: msg.content }}
+                                            />
 
                                             {/* Teacher reply */}
                                             {msg.reply ? (
@@ -92,7 +95,10 @@ export default function StudentInbox({ user }: StudentInboxProps) {
                                                     <div className="text-xs text-blue-500 font-semibold mb-1 flex items-center gap-1">
                                                         <Reply size={12} /> Teacher replied · {msg.repliedAt ? new Date(msg.repliedAt + 'Z').toLocaleString() : ''}
                                                     </div>
-                                                    <p className="text-stone-800 text-sm font-medium whitespace-pre-wrap">{msg.reply}</p>
+                                                    <div
+                                                        className="text-stone-800 text-sm font-medium break-words [&_.inline-emoji]:inline [&_.inline-emoji]:h-[1.4em] [&_.inline-emoji]:align-middle"
+                                                        dangerouslySetInnerHTML={{ __html: msg.reply }}
+                                                    />
                                                 </div>
                                             ) : (
                                                 <div className="mt-2 text-xs text-stone-400 italic flex items-center gap-1">

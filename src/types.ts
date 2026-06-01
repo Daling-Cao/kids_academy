@@ -97,6 +97,14 @@ export interface Rank {
     orderIndex: number;
 }
 
+export interface CustomEmoji {
+    id: number;
+    name: string;
+    url: string;
+    type: 'image' | 'unicode';
+    createdAt: string;
+}
+
 export interface StudentCoinInfo {
     coins: number;
     rank: Rank | null;

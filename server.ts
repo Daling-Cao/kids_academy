@@ -836,6 +836,47 @@ async function startServer() {
     res.json({ success: true, coins: user?.coins || 0 });
   });
 
+  // ─── Custom Emojis ───────────────────────────────────────────────
+  app.get('/api/emojis', authMiddleware, (_req: AuthRequest, res: Response) => {
+    const emojis = db.prepare('SELECT * FROM custom_emojis ORDER BY createdAt ASC').all();
+    res.json(emojis);
+  });
+
+  app.post('/api/emojis', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    upload.single('image')(req, res, (err) => {
+      if (err) {
+        res.status(400).json({ success: false, message: err.message });
+        return;
+      }
+      const { name, unicode } = req.body;
+      if (!name || !name.trim()) {
+        res.status(400).json({ success: false, message: 'Emoji name is required' });
+        return;
+      }
+      if (req.file) {
+        const url = `/uploads/${req.file.filename}`;
+        const result = db.prepare('INSERT INTO custom_emojis (name, url, type) VALUES (?, ?, ?)').run(name.trim(), url, 'image') as any;
+        res.json({ success: true, emoji: { id: result.lastInsertRowid, name: name.trim(), url, type: 'image' } });
+      } else if (unicode && unicode.trim()) {
+        const result = db.prepare('INSERT INTO custom_emojis (name, url, type) VALUES (?, ?, ?)').run(name.trim(), unicode.trim(), 'unicode') as any;
+        res.json({ success: true, emoji: { id: result.lastInsertRowid, name: name.trim(), url: unicode.trim(), type: 'unicode' } });
+      } else {
+        res.status(400).json({ success: false, message: 'Either an image file or unicode emoji is required' });
+      }
+    });
+  });
+
+  app.delete('/api/emojis/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    const emoji = db.prepare('SELECT url, type FROM custom_emojis WHERE id = ?').get(id) as any;
+    if (emoji && emoji.type === 'image') {
+      const filePath = path.resolve(process.cwd(), emoji.url.replace(/^\//, ''));
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+    db.prepare('DELETE FROM custom_emojis WHERE id = ?').run(id);
+    res.json({ success: true });
+  });
+
   // ─── Vite middleware for development ─────────────────────────────
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

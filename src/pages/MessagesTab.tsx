@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { authFetch } from '../App';
 import { Trash2, CheckCircle, Clock, Reply, Send } from 'lucide-react';
 import { useI18n } from '../i18n';
+import EmojiPicker from '../components/EmojiPicker';
+import EmojiManagerPanel from '../components/EmojiManagerPanel';
+import { convertEmoticons } from '../utils/emoticons';
 
 interface Message {
     id: number;
@@ -23,6 +26,7 @@ export default function MessagesTab() {
     const [replyingTo, setReplyingTo] = useState<number | null>(null);
     const [replyText, setReplyText] = useState('');
     const [sendingReply, setSendingReply] = useState(false);
+    const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
 
     const fetchMessages = () => {
         authFetch('/api/messages')
@@ -44,18 +48,32 @@ export default function MessagesTab() {
         setMessages(prev => prev.filter(m => m.id !== id));
     };
 
+    const insertEmojiToReply = (text: string) => {
+        const el = replyTextareaRef.current;
+        if (!el) { setReplyText(r => r + text); return; }
+        const start = el.selectionStart;
+        const end = el.selectionEnd;
+        const newVal = replyText.slice(0, start) + text + replyText.slice(end);
+        setReplyText(newVal);
+        requestAnimationFrame(() => {
+            el.focus();
+            el.setSelectionRange(start + text.length, start + text.length);
+        });
+    };
+
     const handleSendReply = async (id: number) => {
-        if (!replyText.trim()) return;
+        const finalReply = convertEmoticons(replyText.trim());
+        if (!finalReply) return;
         setSendingReply(true);
         try {
             const res = await authFetch(`/api/messages/${id}/reply`, {
                 method: 'PUT',
-                body: JSON.stringify({ reply: replyText }),
+                body: JSON.stringify({ reply: finalReply }),
             });
             const data = await res.json();
             if (data.success) {
                 setMessages(prev => prev.map(m =>
-                    m.id === id ? { ...m, reply: replyText, repliedAt: new Date().toISOString(), isRead: 1 } : m
+                    m.id === id ? { ...m, reply: finalReply, repliedAt: new Date().toISOString(), isRead: 1 } : m
                 ));
                 setReplyingTo(null);
                 setReplyText('');
@@ -126,7 +144,10 @@ export default function MessagesTab() {
                                             {new Date(msg.createdAt + 'Z').toLocaleString()}
                                         </div>
                                     </div>
-                                    <p className="text-stone-700 whitespace-pre-wrap break-words">{msg.content}</p>
+                                    <div
+                                        className="text-stone-700 text-sm break-words [&_.inline-emoji]:inline [&_.inline-emoji]:h-[1.4em] [&_.inline-emoji]:align-middle"
+                                        dangerouslySetInnerHTML={{ __html: msg.content }}
+                                    />
                                 </div>
                             </div>
 
@@ -136,7 +157,10 @@ export default function MessagesTab() {
                                     <div className="text-xs text-blue-500 font-semibold mb-1 flex items-center gap-1">
                                         <Reply size={12} /> {t.yourReply} · {msg.repliedAt ? new Date(msg.repliedAt + 'Z').toLocaleString() : ''}
                                     </div>
-                                    <p className="text-stone-700 text-sm whitespace-pre-wrap">{msg.reply}</p>
+                                    <div
+                                        className="text-stone-700 text-sm break-words [&_.inline-emoji]:inline [&_.inline-emoji]:h-[1.4em] [&_.inline-emoji]:align-middle"
+                                        dangerouslySetInnerHTML={{ __html: msg.reply }}
+                                    />
                                     <button
                                         onClick={() => { setReplyingTo(msg.id); setReplyText(msg.reply || ''); }}
                                         className="text-xs text-blue-500 hover:underline mt-1"
@@ -149,14 +173,20 @@ export default function MessagesTab() {
                             {/* Reply form */}
                             {replyingTo === msg.id && (
                                 <div className="mt-3 ml-14 space-y-2">
-                                    <textarea
-                                        value={replyText}
-                                        onChange={e => setReplyText(e.target.value)}
-                                        placeholder={t.writeReply}
-                                        rows={2}
-                                        autoFocus
-                                        className="w-full px-3 py-2 text-sm rounded-xl border-2 border-blue-200 focus:border-blue-400 focus:outline-none resize-none"
-                                    />
+                                    <div className="relative">
+                                        <textarea
+                                            ref={replyTextareaRef}
+                                            value={replyText}
+                                            onChange={e => setReplyText(e.target.value)}
+                                            placeholder={t.writeReply + ' (try :) or <3)'}
+                                            rows={2}
+                                            autoFocus
+                                            className="w-full px-3 py-2 text-sm rounded-xl border-2 border-blue-200 focus:border-blue-400 focus:outline-none resize-none pb-8"
+                                        />
+                                        <div className="absolute bottom-1.5 left-2">
+                                            <EmojiPicker onInsert={insertEmojiToReply} />
+                                        </div>
+                                    </div>
                                     <div className="flex gap-2">
                                         <button
                                             onClick={() => handleSendReply(msg.id)}
@@ -203,6 +233,9 @@ export default function MessagesTab() {
                     ))}
                 </div>
             )}
+
+            {/* Teacher emoji management */}
+            <EmojiManagerPanel />
         </div>
     );
 }
