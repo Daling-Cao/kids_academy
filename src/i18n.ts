@@ -139,6 +139,7 @@ const translations = {
     manageEmojis: '管理表情',
     noCustomEmojis: '还没有自定义表情',
     insertEmoji: '插入表情',
+    commonEmoticons: '常用表情',
   },
   de: {
     // General
@@ -278,6 +279,7 @@ const translations = {
     manageEmojis: 'Emojis verwalten',
     noCustomEmojis: 'Noch keine eigenen Emojis',
     insertEmoji: 'Emoji einfügen',
+    commonEmoticons: 'Häufige Emoticons',
   }
 };
 

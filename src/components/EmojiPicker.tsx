@@ -3,6 +3,7 @@ import { Smile, X } from 'lucide-react';
 import { authFetch } from '../App';
 import type { CustomEmoji } from '../types';
 import { useI18n } from '../i18n';
+import { EMOTICON_SHORTCUTS } from '../utils/emoticons';
 
 interface EmojiPickerProps {
     onInsert: (text: string) => void;
@@ -40,6 +41,11 @@ export default function EmojiPicker({ onInsert }: EmojiPickerProps) {
         setOpen(false);
     };
 
+    const handleShortcutSelect = (emoji: string) => {
+        onInsert(emoji);
+        setOpen(false);
+    };
+
     return (
         <div ref={ref} className="relative inline-block">
             <button
@@ -52,32 +58,53 @@ export default function EmojiPicker({ onInsert }: EmojiPickerProps) {
             </button>
 
             {open && (
-                <div className="absolute bottom-full mb-2 left-0 z-50 bg-white rounded-2xl shadow-xl border border-stone-100 p-3 w-56">
+                <div className="absolute bottom-full mb-2 left-0 z-50 bg-white rounded-2xl shadow-xl border border-stone-100 p-3 w-64">
                     <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-semibold text-stone-500">{t.customEmojis}</span>
+                        <span className="text-xs font-semibold text-stone-500">{t.insertEmoji}</span>
                         <button type="button" onClick={() => setOpen(false)} className="text-stone-300 hover:text-stone-500">
                             <X size={14} />
                         </button>
                     </div>
-                    {emojis.length === 0 ? (
-                        <p className="text-xs text-stone-400 text-center py-3">{t.noCustomEmojis}</p>
-                    ) : (
-                        <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
-                            {emojis.map(emoji => (
+
+                    {/* Common emoticon shortcuts */}
+                    <div className="mb-2">
+                        <span className="text-[10px] text-stone-400 font-medium">{t.commonEmoticons}</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                            {EMOTICON_SHORTCUTS.map(({ shortcut, emoji }) => (
                                 <button
-                                    key={emoji.id}
+                                    key={shortcut}
                                     type="button"
-                                    title={emoji.name}
-                                    onClick={() => handleSelect(emoji)}
-                                    className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-orange-50 transition-colors border border-transparent hover:border-orange-200"
+                                    title={shortcut}
+                                    onClick={() => handleShortcutSelect(emoji)}
+                                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-orange-50 transition-colors border border-transparent hover:border-orange-200 text-lg"
                                 >
-                                    {emoji.type === 'unicode' ? (
-                                        <span className="text-xl">{emoji.url}</span>
-                                    ) : (
-                                        <img src={emoji.url} alt={emoji.name} className="w-7 h-7 object-contain" />
-                                    )}
+                                    {emoji}
                                 </button>
                             ))}
+                        </div>
+                    </div>
+
+                    {/* Custom emojis */}
+                    {emojis.length > 0 && (
+                        <div className="border-t border-stone-100 pt-2">
+                            <span className="text-[10px] text-stone-400 font-medium">{t.customEmojis}</span>
+                            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto mt-1">
+                                {emojis.map(emoji => (
+                                    <button
+                                        key={emoji.id}
+                                        type="button"
+                                        title={emoji.name}
+                                        onClick={() => handleSelect(emoji)}
+                                        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-orange-50 transition-colors border border-transparent hover:border-orange-200"
+                                    >
+                                        {emoji.type === 'unicode' ? (
+                                            <span className="text-lg">{emoji.url}</span>
+                                        ) : (
+                                            <img src={emoji.url} alt={emoji.name} className="w-6 h-6 object-contain" />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     )}
                 </div>

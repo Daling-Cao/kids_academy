@@ -1,3 +1,22 @@
+export const EMOTICON_SHORTCUTS: { shortcut: string; emoji: string }[] = [
+  { shortcut: ':)', emoji: '😊' },
+  { shortcut: ':D', emoji: '😄' },
+  { shortcut: ':(', emoji: '😢' },
+  { shortcut: ';)', emoji: '😉' },
+  { shortcut: ':P', emoji: '😛' },
+  { shortcut: ':O', emoji: '😲' },
+  { shortcut: ':|', emoji: '😐' },
+  { shortcut: '<3', emoji: '❤️' },
+  { shortcut: ':*', emoji: '😘' },
+  { shortcut: 'XD', emoji: '😆' },
+  { shortcut: 'B)', emoji: '😎' },
+  { shortcut: ':/', emoji: '😕' },
+  { shortcut: '>.<', emoji: '😤' },
+  { shortcut: '^_^', emoji: '😊' },
+  { shortcut: 'o_O', emoji: '😳' },
+  { shortcut: 'T_T', emoji: '😭' },
+];
+
 const EMOTICON_MAP: [RegExp, string][] = [
   [/:-\)/g, '😊'], [/:  \)/g, '😊'], [/:\)/g, '😊'],
   [/:-D/g, '😄'], [/:D/g, '😄'],
