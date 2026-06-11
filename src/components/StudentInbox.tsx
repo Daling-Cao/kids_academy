@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { authFetch } from '../App';
 import { MessageCircle, X, Reply } from 'lucide-react';
 import type { User } from '../types';
+import { sanitizeHtml } from '../utils/sanitize';
 
 interface MyMessage {
     id: number;
@@ -86,7 +87,7 @@ export default function StudentInbox({ user }: StudentInboxProps) {
                                             </div>
                                             <div
                                                 className="text-stone-700 text-sm break-words [&_.inline-emoji]:inline [&_.inline-emoji]:h-[1.4em] [&_.inline-emoji]:align-middle"
-                                                dangerouslySetInnerHTML={{ __html: msg.content }}
+                                                dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.content) }}
                                             />
 
                                             {/* Teacher reply */}
@@ -97,7 +98,7 @@ export default function StudentInbox({ user }: StudentInboxProps) {
                                                     </div>
                                                     <div
                                                         className="text-stone-800 text-sm font-medium break-words [&_.inline-emoji]:inline [&_.inline-emoji]:h-[1.4em] [&_.inline-emoji]:align-middle"
-                                                        dangerouslySetInnerHTML={{ __html: msg.reply }}
+                                                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.reply) }}
                                                     />
                                                 </div>
                                             ) : (

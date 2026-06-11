@@ -35,7 +35,9 @@ const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (_req, file, cb) => {
-    const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+    // Note: SVG is intentionally excluded — SVGs can embed <script>/onload handlers and
+    // are served from /uploads, making them a stored-XSS vector when opened directly.
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
@@ -110,8 +112,11 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-  // Serve uploaded files
-  app.use('/uploads', express.static(uploadsDir));
+  // Serve uploaded files. nosniff prevents the browser from MIME-sniffing an
+  // uploaded file (e.g. HTML disguised as .jpg) into an executable document.
+  app.use('/uploads', express.static(uploadsDir, {
+    setHeaders: (res) => res.setHeader('X-Content-Type-Options', 'nosniff'),
+  }));
 
   // ─── Public Routes ──────────────────────────────────────────────
 
@@ -241,7 +246,8 @@ async function startServer() {
       return;
     }
     try {
-      const result = db.prepare('INSERT INTO messages (fromUserId, content) VALUES (?, ?)').run(fromUserId, content.trim());
+      const sanitizedContent = sanitizeHtml(content.trim());
+      const result = db.prepare('INSERT INTO messages (fromUserId, content) VALUES (?, ?)').run(fromUserId, sanitizedContent);
       res.json({ success: true, id: result.lastInsertRowid });
     } catch (error: any) {
       res.status(400).json({ success: false, message: error.message });
@@ -268,7 +274,8 @@ async function startServer() {
       res.status(400).json({ success: false, message: 'Reply cannot be empty.' });
       return;
     }
-    db.prepare('UPDATE messages SET reply = ?, repliedAt = datetime(\'now\'), isRead = 1 WHERE id = ?').run(reply.trim(), id);
+    const sanitizedReply = sanitizeHtml(reply.trim());
+    db.prepare('UPDATE messages SET reply = ?, repliedAt = datetime(\'now\'), isRead = 1 WHERE id = ?').run(sanitizedReply, id);
     res.json({ success: true });
   });
 
