@@ -15,3 +15,6 @@ fix*.js
 uploads/
 metadata.json
 test_malicious.js
+test_output.txt
+full_diff.txt
+*.db

@@ -5,6 +5,7 @@ import { useI18n } from '../i18n';
 import EmojiPicker from '../components/EmojiPicker';
 import EmojiManagerPanel from '../components/EmojiManagerPanel';
 import { convertEmoticons } from '../utils/emoticons';
+import { sanitizeHtml } from '../utils/sanitize';
 
 interface Message {
     id: number;
@@ -146,7 +147,7 @@ export default function MessagesTab() {
                                     </div>
                                     <div
                                         className="text-stone-700 text-sm break-words [&_.inline-emoji]:inline [&_.inline-emoji]:h-[1.4em] [&_.inline-emoji]:align-middle"
-                                        dangerouslySetInnerHTML={{ __html: msg.content }}
+                                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.content) }}
                                     />
                                 </div>
                             </div>
@@ -159,7 +160,7 @@ export default function MessagesTab() {
                                     </div>
                                     <div
                                         className="text-stone-700 text-sm break-words [&_.inline-emoji]:inline [&_.inline-emoji]:h-[1.4em] [&_.inline-emoji]:align-middle"
-                                        dangerouslySetInnerHTML={{ __html: msg.reply }}
+                                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.reply) }}
                                     />
                                     <button
                                         onClick={() => { setReplyingTo(msg.id); setReplyText(msg.reply || ''); }}
