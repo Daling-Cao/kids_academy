@@ -645,7 +645,7 @@ async function startServer() {
 
   // Add new project
   app.post('/api/projects', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
-    const { buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, tags, segments } = req.body;
+    const { buildingId, title, titleZh = '', titleDe = '', description, descriptionZh = '', descriptionDe = '', scratchFileUrl, scratchProjectId, coverImage, tags, segments } = req.body;
     const maxOrder = db.prepare('SELECT MAX(orderIndex) as max FROM projects WHERE buildingId = ?').get(buildingId) as { max: number };
     const orderIndex = (maxOrder.max || 0) + 1;
 
@@ -701,7 +701,7 @@ async function startServer() {
   // Update project
   app.put('/api/projects/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
     const { id } = req.params;
-    const { buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, tags, segments } = req.body;
+    const { buildingId, title, titleZh = '', titleDe = '', description, descriptionZh = '', descriptionDe = '', scratchFileUrl, scratchProjectId, coverImage, tags, segments } = req.body;
 
     db.prepare('UPDATE projects SET buildingId = ?, title = ?, titleZh = ?, titleDe = ?, description = ?, descriptionZh = ?, descriptionDe = ?, scratchFileUrl = ?, scratchProjectId = ?, coverImage = ?, tags = ? WHERE id = ?')
       .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, JSON.stringify(tags || []), id);
