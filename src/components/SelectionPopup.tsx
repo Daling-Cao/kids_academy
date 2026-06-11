@@ -89,7 +89,7 @@ export default function SelectionPopup({ contentRef, projectTitle }: SelectionPo
         const truncatedText = popup!.selectedText.length > MAX_SELECTED
             ? popup!.selectedText.slice(0, MAX_SELECTED) + '...'
             : popup!.selectedText;
-        const content = `📚 **${projectTitle}**\n\n❓ 关于这段文字有个问题：\n\n"${truncatedText}"\n\n${question}`.slice(0, 990);
+        const content = `📚 **${projectTitle}**\n\n❓ Frage zu diesem Text:\n\n"${truncatedText}"\n\n${question}`.slice(0, 990);
         try {
             const res = await authFetch('/api/messages', {
                 method: 'POST',

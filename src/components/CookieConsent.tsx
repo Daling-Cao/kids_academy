@@ -9,39 +9,21 @@ interface ConsentState {
   preferences: boolean;
 }
 
-const texts = {
-  zh: {
-    title: '我们使用 Cookie 和其他技术',
-    description:
-      '本网站使用 Cookie 及类似技术来处理终端设备信息和个人数据。处理目的包括嵌入第三方内容和服务、统计分析以及记住您的偏好设置。您的同意是自愿的，不影响网站的基本使用。您可以随时通过页面底部的"Cookie 设置"链接更改或撤销您的选择。',
-    acceptAll: '全部接受',
-    rejectAll: '拒绝',
-    settings: '设置',
-    saveSettings: '保存设置',
-    necessary: '必要 Cookie',
-    necessaryDesc: '网站正常运行所必需的 Cookie，无法关闭。',
-    analytics: '分析 Cookie',
-    analyticsDesc: '帮助我们了解访客如何使用网站，以便改进服务。',
-    preferences: '偏好 Cookie',
-    preferencesDesc: '记住您的语言、主题等个性化设置。',
-    alwaysOn: '始终开启',
-  },
-  de: {
-    title: 'Wir nutzen Cookies und andere Technologien',
-    description:
-      'Diese Website nutzt Cookies und vergleichbare Funktionen zur Verarbeitung von Endgeräteinformationen und personenbezogenen Daten. Die Verarbeitung dient der Einbindung von Inhalten, externen Diensten und Elementen Dritter, der statistischen Analyse/Messung sowie der Speicherung Ihrer Einstellungen. Ihre Einwilligung ist stets freiwillig, für die Nutzung unserer Website nicht erforderlich und kann jederzeit über den im Footer aufgeführten Link "Cookie Einstellungen" abgelehnt oder widerrufen werden.',
-    acceptAll: 'Alles akzeptieren',
-    rejectAll: 'Ablehnen',
-    settings: 'Einstellungen',
-    saveSettings: 'Einstellungen speichern',
-    necessary: 'Notwendige Cookies',
-    necessaryDesc: 'Diese Cookies sind für die Grundfunktionen der Website erforderlich und können nicht deaktiviert werden.',
-    analytics: 'Analyse-Cookies',
-    analyticsDesc: 'Helfen uns zu verstehen, wie Besucher die Website nutzen, um unseren Service zu verbessern.',
-    preferences: 'Präferenz-Cookies',
-    preferencesDesc: 'Speichern Ihre Sprach-, Design- und andere persönliche Einstellungen.',
-    alwaysOn: 'Immer aktiv',
-  },
+const t = {
+  title: 'Wir nutzen Cookies und andere Technologien',
+  description:
+    'Diese Website nutzt Cookies und vergleichbare Funktionen zur Verarbeitung von Endgeräteinformationen und personenbezogenen Daten. Die Verarbeitung dient der Einbindung von Inhalten, externen Diensten und Elementen Dritter, der statistischen Analyse/Messung sowie der Speicherung Ihrer Einstellungen. Ihre Einwilligung ist stets freiwillig, für die Nutzung unserer Website nicht erforderlich und kann jederzeit über den im Footer aufgeführten Link "Cookie Einstellungen" abgelehnt oder widerrufen werden.',
+  acceptAll: 'Alles akzeptieren',
+  rejectAll: 'Ablehnen',
+  settings: 'Einstellungen',
+  saveSettings: 'Einstellungen speichern',
+  necessary: 'Notwendige Cookies',
+  necessaryDesc: 'Diese Cookies sind für die Grundfunktionen der Website erforderlich und können nicht deaktiviert werden.',
+  analytics: 'Analyse-Cookies',
+  analyticsDesc: 'Helfen uns zu verstehen, wie Besucher die Website nutzen, um unseren Service zu verbessern.',
+  preferences: 'Präferenz-Cookies',
+  preferencesDesc: 'Speichern Ihre Sprach-, Design- und andere persönliche Einstellungen.',
+  alwaysOn: 'Immer aktiv',
 };
 
 export default function CookieConsent() {
@@ -52,9 +34,6 @@ export default function CookieConsent() {
     analytics: false,
     preferences: false,
   });
-
-  const lang = navigator.language.toLowerCase().startsWith('de') ? 'de' : 'zh';
-  const t = texts[lang];
 
   useEffect(() => {
     const stored = localStorage.getItem(CONSENT_KEY);

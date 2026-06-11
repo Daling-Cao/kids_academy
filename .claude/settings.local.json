@@ -12,7 +12,13 @@
       "Bash(npm run *)",
       "Bash(node -e \"const TableUp = require\\('./node_modules/quill-table-up/dist/index.js'\\); console.log\\('moduleName:', TableUp.default?.moduleName ?? TableUp.moduleName\\)\")",
       "Bash(node -e \"import\\('./node_modules/quill-table-up/dist/index.js'\\).then\\(m => console.log\\('moduleName:', m.default?.moduleName, 'keys:', Object.keys\\(m\\).slice\\(0,5\\)\\)\\)\")",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "PowerShell($m='D:\\\\dev\\\\KidsAcademy\\\\kids_academy'; \"main repo branch:\"; git -C $m rev-parse --abbrev-ref HEAD; \"main repo ProjectEditor tab check:\"; Get-Content \"$m\\\\src\\\\components\\\\ProjectEditor.tsx\" | Select-String -Pattern 'Chinese|setLang|Title \\\\\\(\\\\{' | Select-Object -First 5)",
+      "PowerShell(git -C $m status --short)",
+      "PowerShell(git -C $m rev-list --left-right --count main...claude/sleepy-jang-d323c6 2>&1)",
+      "PowerShell($m='D:\\\\dev\\\\KidsAcademy\\\\kids_academy')",
+      "PowerShell(\"main status:\")",
+      "PowerShell(\"--- ahead/behind ---\")"
     ]
   }
 }
