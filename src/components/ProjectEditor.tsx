@@ -1,13 +1,14 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { marked } from 'marked';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Eye } from 'lucide-react';
 import ReactQuill, { Quill } from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import BlotFormatter from 'quill-blot-formatter';
 import TableUp, { TableMenuContextmenu, TableResizeLine, TableSelection } from 'quill-table-up';
 import 'quill-table-up/index.css';
 import ImageUpload from '../components/ImageUpload';
+import ProjectPreview from './ProjectPreview';
 import { authFetch } from '../App';
 import type { Building, Quiz, ProjectSegment } from '../types';
 
@@ -293,6 +294,7 @@ interface ProjectEditorProps {
 
 export default function ProjectEditor({ project, setProject, onSubmit, onCancel, title, buildings }: ProjectEditorProps) {
     const [tagInput, setTagInput] = useState('');
+    const [showPreview, setShowPreview] = useState(false);
 
     // Single-language app (German). Content is stored in the base columns.
     const tField = 'title';
@@ -384,7 +386,21 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
 
     return (
         <div className="bg-white p-6 rounded-2xl shadow-lg border-2 border-orange-100 mb-8">
-            <h2 className="text-xl font-bold text-orange-700 mb-4">{title}</h2>
+            <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-orange-700">{title}</h2>
+                <button
+                    type="button"
+                    onClick={() => setShowPreview(true)}
+                    className="flex items-center gap-2 bg-stone-100 text-stone-700 px-4 py-2 rounded-xl font-bold text-sm hover:bg-stone-200 transition-colors"
+                    title="Vorschau der Schüleransicht"
+                >
+                    <Eye size={18} /> Vorschau
+                </button>
+            </div>
+
+            {showPreview && (
+                <ProjectPreview project={project} onClose={() => setShowPreview(false)} />
+            )}
 
             <form onSubmit={onSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
