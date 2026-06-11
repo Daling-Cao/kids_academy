@@ -22,8 +22,6 @@ export default function Classroom({ user }: { user: User }) {
   const [showCoinAnimation, setShowCoinAnimation] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  const lang = 'de';
-
   useEffect(() => {
     setLoading(true);
     setError('');
@@ -150,7 +148,7 @@ export default function Classroom({ user }: { user: User }) {
   const publishedSegments = (project.segments || []).filter(s => !!s.isPublished);
   const allSegmentsCompleted = publishedSegments.every(s => segmentProgress[s.id!] === 'completed');
 
-  const pTitle = lang === 'de' ? (project.titleDe || project.title) : project.title;
+  const pTitle = project.title;
 
   return (
     <>
@@ -189,6 +187,12 @@ export default function Classroom({ user }: { user: User }) {
         </div>
 
         <div className="p-8">
+          {project.description && (
+            <p className="text-stone-600 text-lg leading-relaxed mb-8 whitespace-pre-line">
+              {project.description}
+            </p>
+          )}
+
           {project.coverImage && (
             <img
               src={project.coverImage}
@@ -237,12 +241,10 @@ export default function Classroom({ user }: { user: User }) {
               const isSegLocked = !!seg.isLocked;
               const isSegCompleted = segmentProgress[segId] === 'completed';
               
-              const sTitle = lang === 'de' ? (seg.titleDe || seg.title) : seg.title;
-              const sContent = lang === 'de' ? (seg.contentDe || seg.content) : seg.content;
+              const sTitle = seg.title;
+              const sContent = seg.content;
 
-              let segQuizzes = (Array.isArray(seg.quizzes) ? seg.quizzes : []) as Quiz[];
-              const maybeDe = Array.isArray(seg.quizzesDe) ? seg.quizzesDe : [];
-              if (lang === 'de' && maybeDe.length > 0) segQuizzes = maybeDe as Quiz[];
+              const segQuizzes = (Array.isArray(seg.quizzes) ? seg.quizzes : []) as Quiz[];
 
               const isAllAnswered = checkSegmentAllAnswered(seg, segQuizzes);
               const isAllCorrect = checkSegmentAllCorrect(seg, segQuizzes);

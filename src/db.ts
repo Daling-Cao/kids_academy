@@ -215,6 +215,27 @@ try {
   console.error('Error migrating to project_segments:', error);
 }
 
+// One-time migration: consolidate to a single language (German).
+// Earlier versions stored German in the *De columns via a language tab, while the
+// base columns held the default (Chinese/English) text. The app now uses the base
+// columns as the single source of truth, so promote any German content into them.
+const schemaVersion = db.pragma('user_version', { simple: true }) as number;
+if (schemaVersion < 1) {
+  try {
+    db.exec(`
+      UPDATE projects SET title = titleDe WHERE titleDe IS NOT NULL AND trim(titleDe) != '';
+      UPDATE projects SET description = descriptionDe WHERE descriptionDe IS NOT NULL AND trim(descriptionDe) != '';
+      UPDATE project_segments SET title = titleDe WHERE titleDe IS NOT NULL AND trim(titleDe) != '';
+      UPDATE project_segments SET content = contentDe WHERE contentDe IS NOT NULL AND trim(contentDe) != '';
+      UPDATE project_segments SET quizzes = quizzesDe WHERE quizzesDe IS NOT NULL AND quizzesDe != '' AND quizzesDe != '[]';
+    `);
+    db.pragma('user_version = 1');
+    console.log('Migrated German (*De) content into base columns.');
+  } catch (error) {
+    console.error('Error consolidating language columns:', error);
+  }
+}
+
 // Seed initial data if empty
 const adminUsername = process.env.ADMIN_USERNAME || 'teacher';
 const adminPassword = process.env.ADMIN_PASSWORD || 'kids-academy-default-secure-pwd-123'; // More unique placeholder

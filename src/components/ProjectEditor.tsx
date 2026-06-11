@@ -8,6 +8,7 @@ import BlotFormatter from 'quill-blot-formatter';
 import TableUp, { TableMenuContextmenu, TableResizeLine, TableSelection } from 'quill-table-up';
 import 'quill-table-up/index.css';
 import ImageUpload from '../components/ImageUpload';
+import { authFetch } from '../App';
 import type { Building, Quiz, ProjectSegment } from '../types';
 
 // Register font whitelist
@@ -41,6 +42,7 @@ function HtmlEditor({ value, onChange, style, className }: {
     const [rows, setRows] = useState(3);
     const [cols, setCols] = useState(3);
     const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
+    const [importing, setImporting] = useState(false);
 
     const modules = useMemo(() => ({
         toolbar: { container: `#${toolbarId}` },
@@ -71,16 +73,64 @@ function HtmlEditor({ value, onChange, style, className }: {
         setCols(3);
     };
 
-    const importMarkdown = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-            const html = marked.parse(reader.result as string, { async: false }) as string;
-            onChange(html);
-        };
-        reader.readAsText(file);
+    // Import a Markdown file plus any images it references. Select the .md note
+    // together with its image files (Obsidian stores attachments as separate files).
+    // Local image references — both standard ![alt](file.png) and Obsidian embeds
+    // ![[file.png]] / ![[file.png|size]] — are uploaded and rewritten to their URLs.
+    const importMarkdown = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files: File[] = e.target.files ? Array.from(e.target.files) : [];
         e.target.value = '';
+        if (files.length === 0) return;
+
+        const mdFile = files.find(f => /\.(md|markdown)$/i.test(f.name));
+        if (!mdFile) {
+            alert('Bitte wähle eine Markdown-Datei (.md) aus.');
+            return;
+        }
+        const imageFiles = files.filter(f => f.type.startsWith('image/'));
+
+        setImporting(true);
+        try {
+            // Upload each image, keyed by its filename (basename) for lookup.
+            const urlByName: Record<string, string> = {};
+            for (const img of imageFiles) {
+                const formData = new FormData();
+                formData.append('image', img);
+                try {
+                    const res = await authFetch('/api/upload', { method: 'POST', body: formData });
+                    const data = await res.json();
+                    if (data.success) urlByName[img.name] = data.url;
+                } catch {
+                    // Skip failed uploads; the original reference is left untouched.
+                }
+            }
+
+            const resolveUrl = (ref: string): string | undefined => {
+                const trimmed = ref.trim();
+                const basename = trimmed.split(/[\\/]/).pop() || trimmed;
+                return urlByName[trimmed]
+                    || urlByName[basename]
+                    || urlByName[decodeURIComponent(basename)];
+            };
+
+            let md = await mdFile.text();
+            // Obsidian wikilink embeds: ![[file.png]] or ![[file.png|alt-or-size]]
+            md = md.replace(/!\[\[([^\]|]+?)(?:\|[^\]]*)?\]\]/g, (m, fname) => {
+                const url = resolveUrl(fname);
+                return url ? `![](${url})` : m;
+            });
+            // Standard markdown images with local paths: ![alt](path/file.png)
+            md = md.replace(/!\[([^\]]*)\]\(([^)\s]+)(\s+"[^"]*")?\)/g, (m, alt, src, titlePart) => {
+                if (/^(https?:|data:|\/)/i.test(src)) return m; // keep remote/absolute as-is
+                const url = resolveUrl(src);
+                return url ? `![${alt}](${url}${titlePart || ''})` : m;
+            });
+
+            const html = marked.parse(md, { async: false }) as string;
+            onChange(html);
+        } finally {
+            setImporting(false);
+        }
     };
 
     useEffect(() => {
@@ -153,15 +203,17 @@ function HtmlEditor({ value, onChange, style, className }: {
                     <button
                         type="button"
                         onClick={() => mdInputRef.current?.click()}
-                        title="Import Markdown file"
-                        style={{ width: 'auto', padding: '2px 6px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+                        disabled={importing}
+                        title="Markdown-Datei + Bilder importieren (mehrere Dateien auswählbar)"
+                        style={{ width: 'auto', padding: '2px 6px', fontSize: '12px', fontWeight: 600, cursor: importing ? 'wait' : 'pointer', opacity: importing ? 0.6 : 1 }}
                     >
-                        ↑ MD
+                        {importing ? '…' : '↑ MD'}
                     </button>
                     <input
                         ref={mdInputRef}
                         type="file"
-                        accept=".md,.markdown,text/markdown"
+                        multiple
+                        accept=".md,.markdown,text/markdown,image/*"
                         style={{ display: 'none' }}
                         onChange={importMarkdown}
                     />
@@ -189,14 +241,14 @@ function HtmlEditor({ value, onChange, style, className }: {
                         fontSize: '13px',
                     }}
                 >
-                    <span style={{ color: '#6b7280' }}>行</span>
+                    <span style={{ color: '#6b7280' }}>Zeilen</span>
                     <input type="number" value={rows}
                         onChange={e => setRows(Math.max(1, Math.min(20, Number(e.target.value))))}
                         min={1} max={20}
                         style={{ width: '50px', padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: '6px', textAlign: 'center' }}
                     />
                     <span style={{ color: '#9ca3af' }}>×</span>
-                    <span style={{ color: '#6b7280' }}>列</span>
+                    <span style={{ color: '#6b7280' }}>Spalten</span>
                     <input type="number" value={cols}
                         onChange={e => setCols(Math.max(1, Math.min(20, Number(e.target.value))))}
                         min={1} max={20}
@@ -204,7 +256,7 @@ function HtmlEditor({ value, onChange, style, className }: {
                     />
                     <button type="button" onClick={insertTable}
                         style={{ padding: '4px 12px', background: '#f97316', color: '#fff', border: 'none', borderRadius: '7px', cursor: 'pointer', fontWeight: 600 }}
-                    >插入</button>
+                    >Einfügen</button>
                     <button type="button" onClick={() => setShowPicker(false)}
                         style={{ padding: '4px 8px', background: '#f3f4f6', color: '#374151', border: 'none', borderRadius: '7px', cursor: 'pointer' }}
                     >✕</button>
@@ -240,13 +292,13 @@ interface ProjectEditorProps {
 }
 
 export default function ProjectEditor({ project, setProject, onSubmit, onCancel, title, buildings }: ProjectEditorProps) {
-    const [lang, setLang] = useState<'zh'|'de'>('zh');
     const [tagInput, setTagInput] = useState('');
 
-    const tField = lang === 'zh' ? 'title' : 'titleDe';
-    const dField = lang === 'zh' ? 'description' : 'descriptionDe';
-    const cField = lang === 'zh' ? 'content' : 'contentDe';
-    const qField = lang === 'zh' ? 'quizzes' : 'quizzesDe';
+    // Single-language app (German). Content is stored in the base columns.
+    const tField = 'title';
+    const dField = 'description';
+    const cField = 'content';
+    const qField = 'quizzes';
 
     const handleAddTag = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter' && tagInput.trim()) {
@@ -333,11 +385,6 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
     return (
         <div className="bg-white p-6 rounded-2xl shadow-lg border-2 border-orange-100 mb-8">
             <h2 className="text-xl font-bold text-orange-700 mb-4">{title}</h2>
-            
-            <div className="flex border-b border-orange-200 mb-6 font-bold text-stone-500">
-                <button type="button" onClick={() => setLang('zh')} className={`px-4 py-3 flex-1 transition-colors ${lang === 'zh' ? 'text-orange-600 border-b-4 border-orange-500 bg-orange-50/50' : 'hover:bg-stone-50'}`}>中文 (Chinese) - Default</button>
-                <button type="button" onClick={() => setLang('de')} className={`px-4 py-3 flex-1 transition-colors ${lang === 'de' ? 'text-orange-600 border-b-4 border-orange-500 bg-orange-50/50' : 'hover:bg-stone-50'}`}>Deutsch (German)</button>
-            </div>
 
             <form onSubmit={onSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -355,13 +402,13 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                         </select>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-stone-600 mb-1">Title ({lang.toUpperCase()})</label>
+                        <label className="block text-sm font-medium text-stone-600 mb-1">Title</label>
                         <input
                             type="text"
                             value={getProjectField(tField)}
                             onChange={(e) => setProject({ ...project, [tField]: e.target.value })}
                             className="w-full px-4 py-2 rounded-xl border-2 border-orange-100 focus:border-orange-400 focus:outline-none bg-orange-50/30"
-                            required={lang === 'zh'}
+                            required
                         />
                     </div>
                 </div>
@@ -372,13 +419,13 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                 />
 
                 <div>
-                    <label className="block text-sm font-medium text-stone-600 mb-1">Description ({lang.toUpperCase()})</label>
+                    <label className="block text-sm font-medium text-stone-600 mb-1">Description</label>
                     <textarea
                         value={getProjectField(dField)}
                         onChange={(e) => setProject({ ...project, [dField]: e.target.value })}
                         className="w-full px-4 py-2 rounded-xl border-2 border-orange-100 focus:border-orange-400 focus:outline-none bg-orange-50/30"
                         rows={2}
-                        required={lang === 'zh'}
+                        required
                     />
                 </div>
 
@@ -455,7 +502,7 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                                     
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                                         <div>
-                                            <label className="block text-sm font-medium text-stone-600 mb-1">Segment Title ({lang.toUpperCase()})</label>
+                                            <label className="block text-sm font-medium text-stone-600 mb-1">Segment Title</label>
                                             <input
                                                 type="text"
                                                 value={seg[tField] || ''}
@@ -487,7 +534,7 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                                     </div>
 
                                     <div className="mb-8">
-                                        <label className="block text-sm font-medium text-stone-600 mb-1">Content ({lang.toUpperCase()})</label>
+                                        <label className="block text-sm font-medium text-stone-600 mb-1">Content</label>
                                         <div
                                             className="bg-white rounded-xl border border-stone-300 focus-within:border-orange-400 overflow-hidden"
                                             style={{ resize: 'vertical', overflow: 'auto', minHeight: '200px', height: '320px', maxHeight: '80vh' }}
@@ -503,14 +550,14 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
 
                                     <div className="border-t border-stone-200 pt-6">
                                         <div className="flex justify-between items-center mb-4">
-                                            <h4 className="text-lg font-bold text-stone-700">Segment Quizzes ({lang.toUpperCase()}) (Max 3)</h4>
+                                            <h4 className="text-lg font-bold text-stone-700">Segment Quizzes (Max 3)</h4>
                                             {segQuizzes.length < 3 && (
                                                 <button
                                                     type="button"
                                                     onClick={() => handleAddQuiz(sIndex)}
                                                     className="flex items-center gap-1 bg-stone-200 text-stone-700 px-3 py-1 rounded-lg font-bold text-sm hover:bg-stone-300 transition-colors"
                                                 >
-                                                    <Plus size={16} /> Add Quiz ({lang.toUpperCase()})
+                                                    <Plus size={16} /> Add Quiz
                                                 </button>
                                             )}
                                         </div>
