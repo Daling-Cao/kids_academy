@@ -18,6 +18,7 @@ export interface Quiz {
     correctOptionIndex?: number;
     correctOptionIndices?: number[];
     isMultiSelect?: boolean;
+    explanation?: string;
 }
 
 export interface ProjectSegment {

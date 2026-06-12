@@ -666,6 +666,20 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                                                             </div>
                                                         ))}
                                                     </div>
+                                                    <div className="mt-4">
+                                                        <label className="block text-sm font-bold text-stone-600 mb-1">Explanation (optional — shown to students after they answer correctly)</label>
+                                                        <div
+                                                            className="bg-stone-50 rounded-xl border border-stone-200 focus-within:border-orange-400 overflow-hidden"
+                                                            style={{ resize: 'vertical', overflow: 'auto', minHeight: '100px', height: '140px', maxHeight: '40vh' }}
+                                                        >
+                                                            <HtmlEditor
+                                                                value={quiz.explanation || ''}
+                                                                onChange={(content) => handleUpdateQuiz(sIndex, qIndex, 'explanation', content)}
+                                                                style={{ height: 'calc(100% - 42px)' }}
+                                                                className="bg-orange-50/10"
+                                                            />
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
