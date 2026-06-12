@@ -17,6 +17,7 @@ export default function Classroom({ user }: { user: User }) {
   const [segmentProgress, setSegmentProgress] = useState<Record<number, string>>({});
   const [segmentAnswers, setSegmentAnswers] = useState<Record<number, Record<number, number | number[]>>>({});
   const [segmentShowResults, setSegmentShowResults] = useState<Record<number, boolean>>({});
+  const [quizWrongAttempts, setQuizWrongAttempts] = useState<Record<number, Record<number, number>>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCoinAnimation, setShowCoinAnimation] = useState(false);
@@ -116,19 +117,34 @@ export default function Classroom({ user }: { user: User }) {
     });
   };
 
+  const isQuizCorrect = (quiz: Quiz, ans: number | number[] | undefined) => {
+    if (ans === undefined) return false;
+    const correctIndices = quiz.correctOptionIndices || [quiz.correctOptionIndex ?? 0];
+    if (Array.isArray(ans)) {
+      if (ans.length !== correctIndices.length) return false;
+      return ans.every((idx: number) => correctIndices.includes(idx));
+    }
+    return correctIndices.length === 1 && correctIndices[0] === ans;
+  };
+
   const checkSegmentAllCorrect = (segment: any, activeQuizzes: Quiz[]) => {
     if (!activeQuizzes || activeQuizzes.length === 0) return true;
     const segAns = segmentAnswers[segment.id] || {};
-    return checkSegmentAllAnswered(segment, activeQuizzes) && activeQuizzes.every((q: any, i: number) => {
-      const ans = segAns[i];
-      const correctIndices = q.correctOptionIndices || [q.correctOptionIndex ?? 0];
-      if (Array.isArray(ans)) {
-        if (ans.length !== correctIndices.length) return false;
-        return ans.every((idx: number) => correctIndices.includes(idx));
-      } else {
-        return correctIndices.length === 1 && correctIndices[0] === ans;
-      }
+    return checkSegmentAllAnswered(segment, activeQuizzes) && activeQuizzes.every((q, i) => isQuizCorrect(q, segAns[i]));
+  };
+
+  const handleCheckAnswers = (segId: number, activeQuizzes: Quiz[]) => {
+    const segAns = segmentAnswers[segId] || {};
+    setQuizWrongAttempts(prev => {
+      const segAttempts = { ...(prev[segId] || {}) };
+      activeQuizzes.forEach((q, i) => {
+        if (!isQuizCorrect(q, segAns[i])) {
+          segAttempts[i] = (segAttempts[i] || 0) + 1;
+        }
+      });
+      return { ...prev, [segId]: segAttempts };
     });
+    setSegmentShowResults(prev => ({ ...prev, [segId]: true }));
   };
 
   const sanitize = (html: string) => {
@@ -275,7 +291,15 @@ export default function Classroom({ user }: { user: User }) {
                     <div className="mb-8 p-8 rounded-3xl bg-orange-50/50 border-2 border-orange-100">
                       <h3 className="text-2xl font-bold text-orange-800 mb-8 border-b-2 border-orange-200 pb-4 inline-block">{t.knowledgeCheck}</h3>
                       <div className="space-y-8">
-                        {segQuizzes.map((quiz, qIndex) => (
+                        {segQuizzes.map((quiz, qIndex) => {
+                          const quizAns = (segmentAnswers[segId] || {})[qIndex];
+                          const quizCorrect = isQuizCorrect(quiz, quizAns);
+                          const wrongAttempts = (quizWrongAttempts[segId] || {})[qIndex] || 0;
+                          // 答对或连续两次答错后才揭示正确答案
+                          const revealCorrect = isSegCompleted || (showResults && quizCorrect) || wrongAttempts >= 2;
+                          const showExplanation = !!quiz.explanation && (isSegCompleted || (showResults && quizCorrect));
+
+                          return (
                           <div key={qIndex} className="bg-white p-8 rounded-2xl shadow-sm border border-stone-100">
                             <div className="flex items-start gap-4 mb-8">
                               <div className="bg-orange-100 text-orange-700 w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg shrink-0">
@@ -285,18 +309,21 @@ export default function Classroom({ user }: { user: User }) {
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-14">
                               {quiz.options.map((opt: string, oIndex: number) => {
-                                const ans = (segmentAnswers[segId] || {})[qIndex];
+                                const ans = quizAns;
                                 const isSelected = Array.isArray(ans) ? ans.includes(oIndex) : ans === oIndex;
                                 const correctIndices = quiz.correctOptionIndices || [quiz.correctOptionIndex ?? 0];
                                 const isCorrect = correctIndices.includes(oIndex);
                                 const showCorrectness = showResults || isSegCompleted;
 
                                 let btnClass = "text-left px-6 py-4 rounded-xl border-2 transition-all font-medium text-lg ";
-                                if (showCorrectness) {
-                                  if (isCorrect) {
-                                    btnClass += "bg-green-50 border-green-500 text-green-800";
-                                  } else if (isSelected && !isCorrect) {
+                                if (revealCorrect && isCorrect) {
+                                  btnClass += "bg-green-50 border-green-500 text-green-800";
+                                } else if (showCorrectness) {
+                                  if (isSelected && !isCorrect) {
                                     btnClass += "bg-red-50 border-red-500 text-red-800";
+                                  } else if (isSelected) {
+                                    // 多选题部分正确时不泄露该选项是否正确
+                                    btnClass += "bg-orange-50 border-orange-500 text-orange-800";
                                   } else {
                                     btnClass += "bg-stone-50 border-stone-200 text-stone-500 opacity-60";
                                   }
@@ -324,21 +351,38 @@ export default function Classroom({ user }: { user: User }) {
                                           )}
                                         </div>
                                         <span className="flex-1 leading-tight">{opt}</span>
-                                        {showCorrectness && isCorrect && <CheckCircle2 className="text-green-500 shrink-0" size={24} />}
+                                        {revealCorrect && isCorrect && <CheckCircle2 className="text-green-500 shrink-0" size={24} />}
                                         {showCorrectness && isSelected && !isCorrect && <XCircle className="text-red-500 shrink-0" size={24} />}
                                       </div>
                                   </button>
                                 );
                               })}
                             </div>
+
+                            {showResults && !quizCorrect && !isSegCompleted && (
+                              <div className={`mt-6 ml-14 px-5 py-3 rounded-xl font-medium text-lg ${wrongAttempts >= 2
+                                  ? 'bg-green-50 border-2 border-green-200 text-green-800'
+                                  : 'bg-red-50 border-2 border-red-200 text-red-700'
+                                }`}>
+                                {wrongAttempts >= 2 ? t.quizAnswerRevealed : t.quizTryAgain}
+                              </div>
+                            )}
+
+                            {showExplanation && (
+                              <div className="mt-6 ml-14 bg-green-50 border-2 border-green-200 rounded-xl px-5 py-4">
+                                <div className="font-bold text-green-800 mb-1">💡 {t.quizExplanation}</div>
+                                <div className="prose prose-green max-w-none text-green-900" dangerouslySetInnerHTML={{ __html: sanitize(quiz.explanation!) }} />
+                              </div>
+                            )}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
 
                       {!isSegCompleted && (
                         <div className="mt-8 flex justify-center">
                           <button
-                            onClick={() => setSegmentShowResults(prev => ({ ...prev, [segId]: true }))}
+                            onClick={() => handleCheckAnswers(segId, segQuizzes)}
                             disabled={!isAllAnswered}
                             className={`px-10 py-4 rounded-2xl font-bold text-lg transition-all shadow-md ${isAllAnswered
                                 ? 'bg-orange-500 text-white hover:bg-orange-600 hover:shadow-lg hover:-translate-y-0.5'

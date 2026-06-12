@@ -151,6 +151,12 @@ export default function ProjectPreview({ project, onClose }: { project: PreviewP
                                                                         );
                                                                     })}
                                                                 </div>
+                                                                {quiz.explanation && (
+                                                                    <div className="mt-6 ml-14 bg-green-50 border-2 border-green-200 rounded-xl px-5 py-4">
+                                                                        <div className="font-bold text-green-800 mb-1">💡 {t.quizExplanation}</div>
+                                                                        <div className="prose prose-green max-w-none text-green-900" dangerouslySetInnerHTML={{ __html: sanitizeHtml(quiz.explanation) }} />
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         );
                                                     })}

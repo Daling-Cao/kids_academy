@@ -661,7 +661,7 @@ async function startServer() {
         const sanitizedContentZh = sanitizeHtml(seg.contentZh || '');
         const sanitizedContentDe = sanitizeHtml(seg.contentDe || '');
         
-        const sanitizeQs = (qs: any) => JSON.stringify((qs || []).map((q: any) => ({ ...q, question: sanitizeHtml(q.question || '') })));
+        const sanitizeQs = (qs: any) => JSON.stringify((qs || []).map((q: any) => ({ ...q, question: sanitizeHtml(q.question || ''), explanation: sanitizeHtml(q.explanation || '') })));
 
         insertSegment.run(
           projectId, 
@@ -723,7 +723,7 @@ async function startServer() {
         const sanitizedContentZh = sanitizeHtml(seg.contentZh || '');
         const sanitizedContentDe = sanitizeHtml(seg.contentDe || '');
         
-        const sanitizeQs = (qs: any) => JSON.stringify((qs || []).map((q: any) => ({ ...q, question: sanitizeHtml(q.question || '') })));
+        const sanitizeQs = (qs: any) => JSON.stringify((qs || []).map((q: any) => ({ ...q, question: sanitizeHtml(q.question || ''), explanation: sanitizeHtml(q.explanation || '') })));
 
         if (seg.id && existingSegs.includes(seg.id)) {
           updateSegment.run(
