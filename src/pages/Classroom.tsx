@@ -262,7 +262,8 @@ export default function Classroom({ user }: { user: User }) {
 
               const segQuizzes = (Array.isArray(seg.quizzes) ? seg.quizzes : []).slice(0, 5) as Quiz[];
 
-              const wrongRevealedInSeg = Object.values(quizWrongAttempts[segId] || {}).filter(a => a >= 2).length;
+              const _segAttempts = quizWrongAttempts[segId] || {};
+              const wrongRevealedInSeg = (Object.values(_segAttempts) as number[]).filter(a => a >= 2).length;
               const segPenalty = wrongRevealedInSeg >= 2;
 
               const isAllAnswered = checkSegmentAllAnswered(seg, segQuizzes);
@@ -440,8 +441,10 @@ export default function Classroom({ user }: { user: User }) {
                 </h3>
                 <button
                   onClick={() => {
-                    const projectWrongRevealed = Object.values(quizWrongAttempts).reduce((total, segAttempts) =>
-                      total + Object.values(segAttempts).filter(a => a >= 2).length, 0);
+                    const projectWrongRevealed = Object.keys(quizWrongAttempts).reduce((total: number, key) => {
+                      const attempts = quizWrongAttempts[Number(key)];
+                      return total + (Object.values(attempts) as number[]).filter(a => a >= 2).length;
+                    }, 0);
                     handleCompleteProject(projectWrongRevealed >= 2);
                   }}
                   disabled={completed || !allSegmentsCompleted || publishedSegments.length === 0}
