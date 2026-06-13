@@ -50,11 +50,11 @@ export default function Classroom({ user }: { user: User }) {
       .finally(() => setLoading(false));
   }, [id, user.id]);
 
-  const handleCompleteProject = async () => {
+  const handleCompleteProject = async (noScore = false) => {
     try {
       const res = await authFetch(`/api/student/projects/${id}/complete`, {
         method: 'POST',
-        body: JSON.stringify({ userId: user.id })
+        body: JSON.stringify({ userId: user.id, noScore })
       });
       const data = await res.json();
       if (data.success) {
@@ -69,11 +69,11 @@ export default function Classroom({ user }: { user: User }) {
     }
   };
 
-  const handleCompleteSegment = async (segmentId: number) => {
+  const handleCompleteSegment = async (segmentId: number, noScore = false) => {
     try {
       const res = await authFetch(`/api/student/segments/${segmentId}/complete`, {
         method: 'POST',
-        body: JSON.stringify({ userId: user.id })
+        body: JSON.stringify({ userId: user.id, noScore })
       });
       const data = await res.json();
       if (data.success) {
@@ -260,7 +260,7 @@ export default function Classroom({ user }: { user: User }) {
               const sTitle = seg.title;
               const sContent = seg.content;
 
-              const segQuizzes = (Array.isArray(seg.quizzes) ? seg.quizzes : []) as Quiz[];
+              const segQuizzes = (Array.isArray(seg.quizzes) ? seg.quizzes : []).slice(0, 5) as Quiz[];
 
               const isAllAnswered = checkSegmentAllAnswered(seg, segQuizzes);
               const isAllCorrect = checkSegmentAllCorrect(seg, segQuizzes);
@@ -399,11 +399,16 @@ export default function Classroom({ user }: { user: User }) {
                   <div className="mt-8 flex justify-end">
                     <button
                       onClick={async () => {
+                        const projectWrongRevealed = Object.keys(quizWrongAttempts).reduce((total: number, key) => {
+                          const attempts = quizWrongAttempts[Number(key)];
+                          return total + (Object.values(attempts) as number[]).filter(a => a >= 2).length;
+                        }, 0);
+                        const projectPenalty = projectWrongRevealed >= 2;
                         if (publishedSegments.length === 1) {
-                          await handleCompleteSegment(segId);
-                          await handleCompleteProject();
+                          await handleCompleteSegment(segId, projectPenalty);
+                          await handleCompleteProject(projectPenalty);
                         } else {
-                          handleCompleteSegment(segId);
+                          handleCompleteSegment(segId, projectPenalty);
                         }
                       }}
                       disabled={(publishedSegments.length === 1 ? completed : isSegCompleted) || (segQuizzes.length > 0 && (!showResults || !isAllCorrect))}
@@ -436,7 +441,13 @@ export default function Classroom({ user }: { user: User }) {
                   <CheckSquare className="text-orange-500" /> {t.overallProgress}
                 </h3>
                 <button
-                  onClick={handleCompleteProject}
+                  onClick={() => {
+                    const projectWrongRevealed = Object.keys(quizWrongAttempts).reduce((total: number, key) => {
+                      const attempts = quizWrongAttempts[Number(key)];
+                      return total + (Object.values(attempts) as number[]).filter(a => a >= 2).length;
+                    }, 0);
+                    handleCompleteProject(projectWrongRevealed >= 2);
+                  }}
                   disabled={completed || !allSegmentsCompleted || publishedSegments.length === 0}
                   className={`flex items-center gap-4 px-10 py-5 rounded-3xl font-extrabold text-2xl transition-all shadow-xl ${completed
                       ? 'bg-green-500 text-white cursor-default'

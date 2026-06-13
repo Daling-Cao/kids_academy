@@ -362,10 +362,10 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  // Complete a project (Student) — awards 1 BlockCoin (deduplicated)
+  // Complete a project (Student) — awards 1 BlockCoin (deduplicated, unless noScore)
   app.post('/api/student/projects/:projectId/complete', authMiddleware, studentSelfOnly, (req: AuthRequest, res: Response) => {
     const { projectId } = req.params;
-    const { userId } = req.body;
+    const { userId, noScore } = req.body;
 
     const existing = db.prepare('SELECT * FROM user_progress WHERE userId = ? AND projectId = ?').get(userId, projectId) as any;
     if (existing) {
@@ -374,12 +374,12 @@ async function startServer() {
       db.prepare('INSERT INTO user_progress (userId, projectId, state) VALUES (?, ?, ?)').run(userId, projectId, 'completed');
     }
 
-    // Award 1 BlockCoin if not already awarded for this project
+    // Award 1 BlockCoin if not already awarded and student has not triggered the no-score penalty
     let coinAwarded = false;
     const alreadyAwarded = db.prepare(
       'SELECT id FROM coin_transactions WHERE userId = ? AND refType = ? AND refId = ?'
     ).get(userId, 'project_complete', String(projectId));
-    if (!alreadyAwarded) {
+    if (!alreadyAwarded && !noScore) {
       db.prepare('INSERT INTO coin_transactions (userId, amount, reason, refType, refId) VALUES (?, ?, ?, ?, ?)')
         .run(userId, 1, 'Completed a project', 'project_complete', String(projectId));
       db.prepare('UPDATE users SET coins = coins + 1 WHERE id = ?').run(userId);
@@ -427,10 +427,10 @@ async function startServer() {
     });
   });
 
-  // Complete a segment (Student) — awards 1 BlockCoin
+  // Complete a segment (Student) — awards 1 BlockCoin (unless noScore penalty)
   app.post('/api/student/segments/:segmentId/complete', authMiddleware, studentSelfOnly, (req: AuthRequest, res: Response) => {
     const { segmentId } = req.params;
-    const { userId } = req.body;
+    const { userId, noScore } = req.body;
 
     const existing = db.prepare('SELECT * FROM user_segment_progress WHERE userId = ? AND segmentId = ?').get(userId, segmentId) as any;
     if (!existing) {
@@ -441,8 +441,8 @@ async function startServer() {
     const alreadyAwarded = db.prepare(
       'SELECT id FROM coin_transactions WHERE userId = ? AND refType = ? AND refId = ?'
     ).get(userId, 'segment_complete', String(segmentId));
-    
-    if (!alreadyAwarded) {
+
+    if (!alreadyAwarded && !noScore) {
       db.prepare('INSERT INTO coin_transactions (userId, amount, reason, refType, refId) VALUES (?, ?, ?, ?, ?)')
         .run(userId, 1, 'Completed a learning segment', 'segment_complete', String(segmentId));
       db.prepare('UPDATE users SET coins = coins + 1 WHERE id = ?').run(userId);
