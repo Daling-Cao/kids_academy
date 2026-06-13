@@ -262,10 +262,6 @@ export default function Classroom({ user }: { user: User }) {
 
               const segQuizzes = (Array.isArray(seg.quizzes) ? seg.quizzes : []).slice(0, 5) as Quiz[];
 
-              const _segAttempts = quizWrongAttempts[segId] || {};
-              const wrongRevealedInSeg = (Object.values(_segAttempts) as number[]).filter(a => a >= 2).length;
-              const segPenalty = wrongRevealedInSeg >= 2;
-
               const isAllAnswered = checkSegmentAllAnswered(seg, segQuizzes);
               const isAllCorrect = checkSegmentAllCorrect(seg, segQuizzes);
               const showResults = segmentShowResults[segId] || false;
@@ -403,11 +399,16 @@ export default function Classroom({ user }: { user: User }) {
                   <div className="mt-8 flex justify-end">
                     <button
                       onClick={async () => {
+                        const projectWrongRevealed = Object.keys(quizWrongAttempts).reduce((total: number, key) => {
+                          const attempts = quizWrongAttempts[Number(key)];
+                          return total + (Object.values(attempts) as number[]).filter(a => a >= 2).length;
+                        }, 0);
+                        const projectPenalty = projectWrongRevealed >= 2;
                         if (publishedSegments.length === 1) {
-                          await handleCompleteSegment(segId, segPenalty);
-                          await handleCompleteProject(segPenalty);
+                          await handleCompleteSegment(segId, projectPenalty);
+                          await handleCompleteProject(projectPenalty);
                         } else {
-                          handleCompleteSegment(segId, segPenalty);
+                          handleCompleteSegment(segId, projectPenalty);
                         }
                       }}
                       disabled={(publishedSegments.length === 1 ? completed : isSegCompleted) || (segQuizzes.length > 0 && (!showResults || !isAllCorrect))}
