@@ -399,16 +399,13 @@ export default function Classroom({ user }: { user: User }) {
                   <div className="mt-8 flex justify-end">
                     <button
                       onClick={async () => {
-                        const projectWrongRevealed = Object.keys(quizWrongAttempts).reduce((total: number, key) => {
-                          const attempts = quizWrongAttempts[Number(key)];
-                          return total + (Object.values(attempts) as number[]).filter(a => a >= 2).length;
-                        }, 0);
-                        const projectPenalty = projectWrongRevealed >= 2;
+                        const segAttempts = quizWrongAttempts[segId] || {};
+                        const segPenalty = (Object.values(segAttempts) as number[]).some(a => a >= 2);
                         if (publishedSegments.length === 1) {
-                          await handleCompleteSegment(segId, projectPenalty);
-                          await handleCompleteProject(projectPenalty);
+                          await handleCompleteSegment(segId, segPenalty);
+                          await handleCompleteProject(segPenalty);
                         } else {
-                          handleCompleteSegment(segId, projectPenalty);
+                          handleCompleteSegment(segId, segPenalty);
                         }
                       }}
                       disabled={(publishedSegments.length === 1 ? completed : isSegCompleted) || (segQuizzes.length > 0 && (!showResults || !isAllCorrect))}
@@ -442,11 +439,11 @@ export default function Classroom({ user }: { user: User }) {
                 </h3>
                 <button
                   onClick={() => {
-                    const projectWrongRevealed = Object.keys(quizWrongAttempts).reduce((total: number, key) => {
+                    const projectPenalty = Object.keys(quizWrongAttempts).some(key => {
                       const attempts = quizWrongAttempts[Number(key)];
-                      return total + (Object.values(attempts) as number[]).filter(a => a >= 2).length;
-                    }, 0);
-                    handleCompleteProject(projectWrongRevealed >= 2);
+                      return (Object.values(attempts) as number[]).some(a => a >= 2);
+                    });
+                    handleCompleteProject(projectPenalty);
                   }}
                   disabled={completed || !allSegmentsCompleted || publishedSegments.length === 0}
                   className={`flex items-center gap-4 px-10 py-5 rounded-3xl font-extrabold text-2xl transition-all shadow-xl ${completed
