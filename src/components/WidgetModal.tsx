@@ -50,12 +50,13 @@ export default function WidgetModal({ widgetId, widgetName, entryFile = 'index.h
           </div>
         </div>
 
-        {/* Iframe */}
+        {/* Iframe — sandboxed: scripts run but cannot access parent localStorage or call /api/* */}
         <iframe
           src={src}
           title={widgetName}
           className="flex-1 w-full border-0"
           allow="fullscreen"
+          sandbox="allow-scripts allow-forms allow-downloads allow-modals"
         />
       </div>
     </div>

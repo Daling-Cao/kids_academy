@@ -98,8 +98,12 @@ function HtmlEditor({ value, onChange, style, className }: {
         const quill = quillRef.current?.getEditor();
         if (!quill) return;
         const range = quill.getSelection(true);
-        const html = `<a href="#" class="ka-widget" data-widget-id="${widget.id}" data-widget-name="${widget.name}" data-widget-entry="${widget.entryFile}">🔧 ${widget.name}</a>`;
-        quill.clipboard.dangerouslyPasteHTML(range.index, html);
+        const label = `🔧 ${widget.name}`;
+        // Use Quill's native link format — only href survives clipboard sanitization.
+        // We encode the widget ID into the href (/widget-open/:id) so the classroom
+        // click handler can recover it without needing custom data-* attributes.
+        quill.insertText(range.index, label, 'link', `/widget-open/${widget.id}`);
+        quill.setSelection(range.index + label.length);
         setShowWidgetPicker(false);
     };
 

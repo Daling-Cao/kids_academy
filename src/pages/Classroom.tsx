@@ -150,9 +150,7 @@ export default function Classroom({ user }: { user: User }) {
   };
 
   const sanitize = (html: string) => {
-    const cleaned = DOMPurify.sanitize(html, {
-      ADD_ATTR: ['data-widget-id', 'data-widget-name', 'data-widget-entry'],
-    });
+    const cleaned = DOMPurify.sanitize(html);
     // Replace non-breaking spaces and other whitespace chars that prevent line breaks
     return cleaned
       .replace(/&nbsp;/g, ' ')
@@ -162,14 +160,19 @@ export default function Classroom({ user }: { user: User }) {
   };
 
 
-  const handleContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const target = (e.target as Element).closest('[data-widget-id]');
-    if (!target) return;
+  const handleContentClick = async (e: React.MouseEvent<HTMLDivElement>) => {
+    const anchor = (e.target as Element).closest('a[href]');
+    if (!anchor) return;
+    const href = anchor.getAttribute('href') || '';
+    const m = href.match(/^\/widget-open\/(\d+)$/);
+    if (!m) return;
     e.preventDefault();
-    const wId = Number(target.getAttribute('data-widget-id'));
-    const wName = target.getAttribute('data-widget-name') || 'Widget';
-    const wEntry = target.getAttribute('data-widget-entry') || 'index.html';
-    if (wId) setActiveWidget({ id: wId, name: wName, entryFile: wEntry });
+    const widgetId = Number(m[1]);
+    try {
+      const res = await authFetch(`/api/widgets/${widgetId}`);
+      const w = await res.json();
+      if (w.id) setActiveWidget({ id: w.id, name: w.name, entryFile: w.entryFile || 'index.html' });
+    } catch {}
   };
 
   if (loading) return <div className="text-center p-8 text-stone-500">{t.loading}</div>;

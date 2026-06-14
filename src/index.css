@@ -86,7 +86,7 @@
 }
 
 /* ── Widget links inside course content ── */
-.classroom-content a.ka-widget {
+.classroom-content a[href^="/widget-open/"] {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -103,7 +103,7 @@
   box-shadow: 0 2px 8px rgba(249, 115, 22, 0.15);
   margin: 4px 0;
 }
-.classroom-content a.ka-widget:hover {
+.classroom-content a[href^="/widget-open/"]:hover {
   background: linear-gradient(135deg, #ffedd5, #fed7aa);
   border-color: #ea580c;
   transform: translateY(-1px);
