@@ -130,6 +130,25 @@ const translations = {
     sending: 'Wird gesendet...',
     markAsRead: 'Als gelesen markieren',
 
+    // Widget Library
+    tabWidgets: 'Werkzeuge',
+    widgetLibrary: 'Werkzeugbibliothek',
+    widgetLibraryDesc: 'Interaktive Lernwerkzeuge – direkt im Browser nutzbar.',
+    uploadWidget: 'Werkzeug hochladen',
+    widgetName: 'Werkzeugname',
+    widgetDesc: 'Beschreibung',
+    widgetUploadHint: 'ZIP-Datei (Ordner) oder einzelne HTML-Datei hochladen',
+    widgetUploading: 'Wird hochgeladen…',
+    widgetUploadSuccess: 'Werkzeug erfolgreich hochgeladen!',
+    widgetDeleteConfirm: 'Dieses Werkzeug wirklich löschen?',
+    noWidgets: 'Noch keine Werkzeuge hochgeladen.',
+    openWidget: 'Öffnen',
+    insertWidget: '🔧 Werkzeug',
+    widgetPickerTitle: 'Werkzeug einfügen',
+    widgetPickerEmpty: 'Keine Werkzeuge verfügbar.',
+    widgetLinkLabel: 'Werkzeug anzeigen',
+    toolsLibrary: 'Werkzeugbibliothek',
+
     // Emoji
     customEmojis: 'Eigene Emojis',
     addEmoji: 'Emoji hinzufügen',

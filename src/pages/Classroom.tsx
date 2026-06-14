@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { CheckSquare, Square, Download, ArrowLeft, CheckCircle2, XCircle, Lock } from 'lucide-react';
 import DOMPurify from 'isomorphic-dompurify';
 import { motion, AnimatePresence } from 'motion/react';
 import { authFetch } from '../App';
 import SelectionPopup from '../components/SelectionPopup';
+import WidgetModal from '../components/WidgetModal';
 import type { User, Project, Quiz } from '../types';
 import { useI18n } from '../i18n';
 
@@ -21,6 +22,7 @@ export default function Classroom({ user }: { user: User }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCoinAnimation, setShowCoinAnimation] = useState(false);
+  const [activeWidget, setActiveWidget] = useState<{ id: number; name: string; entryFile: string } | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -148,13 +150,26 @@ export default function Classroom({ user }: { user: User }) {
   };
 
   const sanitize = (html: string) => {
-    const cleaned = DOMPurify.sanitize(html);
+    const cleaned = DOMPurify.sanitize(html, {
+      ADD_ATTR: ['data-widget-id', 'data-widget-name', 'data-widget-entry'],
+    });
     // Replace non-breaking spaces and other whitespace chars that prevent line breaks
     return cleaned
       .replace(/&nbsp;/g, ' ')
       .replace(/ /g, ' ')
       .replace(/ /g, ' ')
       .replace(/ /g, ' ');
+  };
+
+
+  const handleContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = (e.target as Element).closest('[data-widget-id]');
+    if (!target) return;
+    e.preventDefault();
+    const wId = Number(target.getAttribute('data-widget-id'));
+    const wName = target.getAttribute('data-widget-name') || 'Widget';
+    const wEntry = target.getAttribute('data-widget-entry') || 'index.html';
+    if (wId) setActiveWidget({ id: wId, name: wName, entryFile: wEntry });
   };
 
   if (loading) return <div className="text-center p-8 text-stone-500">{t.loading}</div>;
@@ -283,6 +298,7 @@ export default function Classroom({ user }: { user: User }) {
                   {sContent && (
                     <div
                       className="prose prose-orange max-w-none mb-12 text-stone-700 leading-relaxed text-lg select-text classroom-content"
+                      onClick={handleContentClick}
                       dangerouslySetInnerHTML={{ __html: sanitize(sContent) }}
                     />
                   )}
@@ -474,6 +490,14 @@ export default function Classroom({ user }: { user: User }) {
         </div>
       </div>
       <SelectionPopup contentRef={contentRef} projectTitle={project.title} />
+      {activeWidget && (
+        <WidgetModal
+          widgetId={activeWidget.id}
+          widgetName={activeWidget.name}
+          entryFile={activeWidget.entryFile}
+          onClose={() => setActiveWidget(null)}
+        />
+      )}
     </>
   );
 }
