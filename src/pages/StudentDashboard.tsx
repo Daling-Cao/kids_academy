@@ -12,6 +12,7 @@ export default function StudentDashboard({ user }: { user: User }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [coinInfo, setCoinInfo] = useState<StudentCoinInfo | null>(null);
+  const [widgetLibraryImage, setWidgetLibraryImage] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -22,10 +23,12 @@ export default function StudentDashboard({ user }: { user: User }) {
         return res.json();
       }),
       authFetch(`/api/student/coins/${user.id}`).then(res => res.json()).catch(() => null),
+      authFetch('/api/settings').then(res => res.json()).catch(() => ({})),
     ])
-      .then(([buildingsData, coinsData]) => {
+      .then(([buildingsData, coinsData, settings]) => {
         setBuildings(buildingsData);
         if (coinsData) setCoinInfo(coinsData);
+        setWidgetLibraryImage((settings as Record<string, string>).widget_library_image || '');
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
@@ -140,17 +143,35 @@ export default function StudentDashboard({ user }: { user: User }) {
             </div>
           </div>
         ))}
-      </div>
-      {/* Tool Library */}
-      <div className="mt-20 flex justify-center">
-        <button
+
+        {/* Widget Library — same card style as buildings */}
+        <div
           onClick={() => navigate('/widgets')}
-          className="group flex items-center gap-3 bg-white border-2 border-orange-200 hover:border-orange-400 hover:bg-orange-50 text-orange-700 font-bold px-8 py-4 rounded-2xl shadow-md transition-all duration-200 hover:shadow-lg hover:-translate-y-1"
+          className="group relative flex flex-col items-center justify-end w-full max-w-sm cursor-pointer transition-all duration-300 hover:-translate-y-4"
         >
-          <span className="text-2xl group-hover:scale-110 transition-transform">🔧</span>
-          <span className="text-lg">{t.toolsLibrary}</span>
-          <span className="text-orange-400 group-hover:text-orange-600 transition-colors">→</span>
-        </button>
+          <div className="relative z-10 w-full h-64 flex items-center justify-center">
+            {widgetLibraryImage ? (
+              <img
+                src={widgetLibraryImage}
+                alt={t.toolsLibrary}
+                className="max-w-full max-h-full object-contain drop-shadow-2xl transition-transform duration-300 group-hover:scale-110"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-48 h-48 bg-orange-200 rounded-3xl flex items-center justify-center transform rotate-3 drop-shadow-xl group-hover:scale-110 transition-transform duration-300">
+                <span className="text-6xl">🔧</span>
+              </div>
+            )}
+          </div>
+          <div className="relative z-20 mt-4 flex flex-col items-center text-center">
+            <h2 className="text-2xl font-black text-orange-900 bg-white/90 backdrop-blur-sm px-6 py-2 rounded-full shadow-lg border-2 border-orange-100 group-hover:border-orange-400 group-hover:text-orange-600 transition-colors">
+              {t.toolsLibrary}
+            </h2>
+            <span className="absolute -bottom-12 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-orange-500 text-white px-5 py-2 rounded-full font-bold text-sm shadow-md group-hover:translate-y-2">
+              Erkunden &rarr;
+            </span>
+          </div>
+        </div>
       </div>
 
       <MessageButton user={user} />

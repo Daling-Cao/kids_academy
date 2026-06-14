@@ -942,6 +942,28 @@ async function startServer() {
     res.json({ success: true });
   });
 
+  // ─── App Settings Routes ─────────────────────────────────────────
+
+  // Public read — students need the widget library cover image
+  app.get('/api/settings', authMiddleware, (_req: AuthRequest, res: Response) => {
+    const rows = db.prepare('SELECT key, value FROM app_settings').all() as any[];
+    const obj: Record<string, string> = {};
+    rows.forEach(r => { obj[r.key] = r.value; });
+    res.json(obj);
+  });
+
+  // Teacher write
+  app.put('/api/settings', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const updates: Record<string, string> = req.body;
+    const upsert = db.prepare('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
+    for (const [key, value] of Object.entries(updates)) {
+      if (typeof key === 'string' && typeof value === 'string') {
+        upsert.run(key, value);
+      }
+    }
+    res.json({ success: true });
+  });
+
   // ─── Widget Routes ───────────────────────────────────────────────
 
   // List all widgets (students and teachers can browse)
