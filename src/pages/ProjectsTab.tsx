@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Lock, Unlock, GripVertical } from 'lucide-react';
+import { Plus, Edit2, Trash2, Lock, Unlock, GripVertical, FlaskConical } from 'lucide-react';
 import ProjectEditor from '../components/ProjectEditor';
 import { authFetch } from '../App';
 import type { Project, Building, ProjectSegment } from '../types';
@@ -86,6 +86,115 @@ export default function ProjectsTab() {
         });
         setEditingProject(null);
         fetchProjects();
+    };
+
+    const handleGenerateTestData = async () => {
+        const targetBuildingId = buildings[0]?.id || 1;
+        const testProject = {
+            buildingId: targetBuildingId,
+            title: 'Warum Katzen Kartons lieben',
+            description: 'Ein Übungsprojekt zum Testen des Systems. Enthält einen Beispielartikel und fünf Quizfragen mit Erklärungen.',
+            scratchFileUrl: '',
+            scratchProjectId: '10128407',
+            coverImage: 'https://picsum.photos/seed/katze/800/400',
+            tags: ['Test', 'Beispiel'],
+            segments: [
+                {
+                    title: 'Die geheimnisvolle Welt der Katzen und Kartons',
+                    content: `<h2>Einleitung: Ein uraltes Rätsel</h2>
+<p>Seit Jahrtausenden beobachten Wissenschaftlerinnen und Wissenschaftler ein seltsames Phänomen: Katzen lieben Kartons. Es spielt keine Rolle, ob der Karton groß oder klein ist, ob er nach Schokolade oder nach Motoröl riecht – eine Katze wird hineinklettern. Dieses Verhalten wurde erstmals im Jahr 1842 vom berühmten Schweizer Zoologen Professor Karl-Heinz Boxenhofer dokumentiert, der seine Katze Murrizel dabei beobachtete, wie sie einen leeren Stiefelkarton bevorzugte statt der brandneuen Samtcouch im Wert von 400 Goldtalern.</p>
+
+<h2>Die Wissenschaft dahinter</h2>
+<p>Laut einer Studie der Universität Katzenhausen (2019) fühlen sich Katzen in engen, geschlossenen Räumen sicherer. Der Karton simuliert eine Höhle oder einen Unterschlupf, was den Jagdinstinkt aktiviert. Interessanterweise ist auch die Farbe des Kartons relevant: Katzen bevorzugen braune Kartons zu 78%, grüne zu 14% und rosa Kartons lehnen sie mit einer Wahrscheinlichkeit von 99,7% komplett ab. (Die verbleibenden 0,3% sind statistisch gesehen einfach sehr merkwürdige Katzen.)</p>
+
+<h2>Der Geruch als Hauptfaktor</h2>
+<p>Kartons bestehen aus Wellpappe, die einen charakteristischen Geruch hat. Katzen besitzen rund 200 Millionen Riechrezeptoren, verglichen mit nur 5 Millionen beim Menschen. Für eine Katze riecht ein Karton nach einem Abenteuer, nach fremden Ländern, nach dem Lager eines Händlers in der Ferne. Für einen Menschen riecht er nach Karton.</p>
+
+<h2>Praktische Konsequenzen</h2>
+<p>Die Erkenntnis, dass Katzen Kartons lieben, hat wichtige gesellschaftliche Auswirkungen. Online-Händler berichten, dass Katzenbesitzerinnen und -besitzer im Durchschnitt 34% mehr bestellen als andere Haushalte – nicht weil sie mehr Dinge brauchen, sondern wegen der Kartons. Die Katze bestimmt somit indirekt das Konsumverhalten von Millionen von Menschen weltweit. Ökonominnen und Ökonomen sprechen vom sogenannten "Miau-Effekt".</p>
+
+<h2>Fazit</h2>
+<p>Ob als Höhle, als Jagdrevier oder als Entspannungszone – der Karton ist für die Katze ein Multifunktionsmöbel. Er kostet nichts, macht glücklich und zeigt uns gleichzeitig, dass die besten Dinge im Leben oft die einfachsten sind. Und das nächste Mal, wenn ein Paket geliefert wird, wisst ihr: Das Geschenk darin ist für euch. Der Karton gehört der Katze.</p>`,
+                    contentZh: '',
+                    contentDe: '',
+                    isPublished: true,
+                    isLocked: false,
+                    orderIndex: 1,
+                    quizzes: [
+                        {
+                            question: 'Wer dokumentierte erstmals das Verhalten von Katzen in Kartons?',
+                            options: [
+                                'Professor Karl-Heinz Boxenhofer',
+                                'Dr. Felix Schnurrbart',
+                                'Baroness Hildegard von Pfote',
+                                'Sir Reginald Miau III.'
+                            ],
+                            correctOptionIndices: [0],
+                            isMultiSelect: false,
+                            explanation: '<p>Laut dem Artikel war es <strong>Professor Karl-Heinz Boxenhofer</strong>, der dieses Phänomen im Jahr 1842 als Erster dokumentierte – nachdem seine Katze Murrizel einen Stiefelkarton einer teuren Samtcouch vorzog.</p>'
+                        },
+                        {
+                            question: 'Wie viele Riechrezeptoren besitzt eine Katze ungefähr?',
+                            options: [
+                                '5 Millionen',
+                                '50 Millionen',
+                                '200 Millionen',
+                                '1 Milliarde'
+                            ],
+                            correctOptionIndices: [2],
+                            isMultiSelect: false,
+                            explanation: '<p>Katzen besitzen rund <strong>200 Millionen Riechrezeptoren</strong> – das sind 40-mal mehr als beim Menschen (5 Millionen). Deshalb ist der Geruch des Kartons für eine Katze ein echtes Erlebnis.</p>'
+                        },
+                        {
+                            question: 'Welche Farbe bevorzugen Katzen bei Kartons laut der Studie aus Katzenhausen?',
+                            options: [
+                                'Grün (78%)',
+                                'Rosa (78%)',
+                                'Braun (78%)',
+                                'Blau (78%)'
+                            ],
+                            correctOptionIndices: [2],
+                            isMultiSelect: false,
+                            explanation: '<p>Laut der Studie der Universität Katzenhausen (2019) bevorzugen Katzen <strong>braune Kartons zu 78%</strong>. Rosa Kartons werden mit einer Wahrscheinlichkeit von 99,7% abgelehnt.</p>'
+                        },
+                        {
+                            question: 'Was beschreibt der Begriff "Miau-Effekt" im Artikel?',
+                            options: [
+                                'Das Geräusch, das Katzen beim Betreten eines Kartons machen',
+                                'Den Einfluss von Katzen auf das Konsumverhalten ihrer Besitzer',
+                                'Die Reaktion von Katzen auf laute Musik',
+                                'Eine neue Marketingstrategie für Tiernahrung'
+                            ],
+                            correctOptionIndices: [1],
+                            isMultiSelect: false,
+                            explanation: '<p>Der <strong>"Miau-Effekt"</strong> beschreibt laut Artikel den indirekten Einfluss der Katze auf das Kaufverhalten: Katzenbesitzerinnen bestellen 34% mehr im Online-Handel – hauptsächlich wegen der Kartons, die die Katzen bekommen.</p>'
+                        },
+                        {
+                            question: 'Welche zwei Gründe nennt der Artikel, warum Katzen Kartons mögen? (Mehrere Antworten möglich)',
+                            options: [
+                                'Der Karton simuliert eine sichere Höhle',
+                                'Katzen mögen den Geschmack von Pappe',
+                                'Der Geruch des Kartons wirkt wie ein Abenteuer',
+                                'Kartons sind immer warm und beheizt'
+                            ],
+                            correctOptionIndices: [0, 2],
+                            isMultiSelect: true,
+                            explanation: '<p>Der Artikel nennt zwei Hauptgründe: Erstens aktiviert der enge Raum den <strong>Jagd- und Sicherheitsinstinkt</strong> (Höhleneffekt). Zweitens hat der charakteristische <strong>Geruch der Wellpappe</strong> eine starke Wirkung auf Katzen mit ihren 200 Millionen Riechrezeptoren.</p>'
+                        }
+                    ],
+                    quizzesZh: [],
+                    quizzesDe: []
+                }
+            ]
+        };
+
+        const res = await authFetch('/api/projects', {
+            method: 'POST',
+            body: JSON.stringify(testProject)
+        });
+        if (res.ok) {
+            fetchProjects();
+        }
     };
 
     const handleDeleteProject = async (id: number) => {
@@ -195,7 +304,14 @@ export default function ProjectsTab() {
 
     return (
         <>
-            <div className="flex justify-end mb-6">
+            <div className="flex justify-end gap-3 mb-6">
+                <button
+                    onClick={handleGenerateTestData}
+                    className="flex items-center gap-2 bg-violet-500 text-white px-4 py-2 rounded-xl font-bold shadow-md hover:bg-violet-600 transition-colors"
+                    title="Erstellt ein vollständiges Beispielprojekt mit Artikel, Bild, Scratch-Link und 5 Quizfragen"
+                >
+                    <FlaskConical size={20} /> {t.generateTestData}
+                </button>
                 <button
                     onClick={() => setShowAddForm(!showAddForm)}
                     className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-xl font-bold shadow-md hover:bg-orange-600 transition-colors"
