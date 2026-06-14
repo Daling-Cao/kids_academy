@@ -396,6 +396,14 @@ export default function Classroom({ user }: { user: User }) {
                     </div>
                   )}
 
+                  {(() => {
+                    // A completed segment must always show the green confirmation —
+                    // never the hidden state — even after a reload where showResults resets.
+                    const lessonDone = publishedSegments.length === 1 ? (completed || isSegCompleted) : isSegCompleted;
+                    // The button is actionable once there are no quizzes, the quiz was passed
+                    // this session, or the segment is already marked complete (self-heal).
+                    const canComplete = segQuizzes.length === 0 || (showResults && isAllCorrect) || isSegCompleted;
+                    return (
                   <div className="mt-8 flex justify-end">
                     <button
                       onClick={async () => {
@@ -408,21 +416,23 @@ export default function Classroom({ user }: { user: User }) {
                           handleCompleteSegment(segId, segPenalty);
                         }
                       }}
-                      disabled={(publishedSegments.length === 1 ? completed : isSegCompleted) || (segQuizzes.length > 0 && (!showResults || !isAllCorrect))}
+                      disabled={lessonDone || !canComplete}
                       className={`flex items-center gap-3 px-8 py-4 rounded-2xl font-bold text-lg transition-all shadow-md ${
-                        (publishedSegments.length === 1 ? completed : isSegCompleted)
+                        lessonDone
                           ? 'bg-green-500 text-white cursor-default'
-                          : (segQuizzes.length === 0 || (showResults && isAllCorrect))
+                          : canComplete
                             ? 'bg-blue-500 text-white hover:bg-blue-600 hover:scale-105'
                             : 'bg-stone-100 text-stone-400 border-2 border-stone-200 cursor-not-allowed hidden'
                         }`}
                     >
-                      {(publishedSegments.length === 1 ? completed : isSegCompleted) ? <CheckSquare size={24} /> : <Square size={24} />}
-                      {(publishedSegments.length === 1 ? completed : isSegCompleted)
+                      {lessonDone ? <CheckSquare size={24} /> : <Square size={24} />}
+                      {lessonDone
                         ? (publishedSegments.length === 1 ? t.fullyCompleted : t.segmentCompleted)
                         : (publishedSegments.length === 1 ? t.markCompleted : t.completeSegment)}
                     </button>
                   </div>
+                    );
+                  })()}
                 </div>
               );
             })}
