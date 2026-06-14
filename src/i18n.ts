@@ -148,6 +148,7 @@ const translations = {
     widgetPickerEmpty: 'Keine Werkzeuge verfügbar.',
     widgetLinkLabel: 'Werkzeug anzeigen',
     toolsLibrary: 'Werkzeugbibliothek',
+    widgetLibrarySettings: 'Bibliothek-Einstellungen',
 
     // Emoji
     customEmojis: 'Eigene Emojis',

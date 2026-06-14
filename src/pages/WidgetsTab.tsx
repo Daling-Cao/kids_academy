@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trash2, Upload, ExternalLink } from 'lucide-react';
+import { Trash2, Upload, ExternalLink, Image } from 'lucide-react';
 import { authFetch } from '../App';
 import WidgetModal from '../components/WidgetModal';
+import ImageUpload from '../components/ImageUpload';
 import type { Widget } from '../types';
 import { useI18n } from '../i18n';
 
@@ -16,11 +17,32 @@ export default function WidgetsTab() {
   const [previewWidget, setPreviewWidget] = useState<Widget | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Library cover image setting
+  const [coverImage, setCoverImage] = useState('');
+  const [coverSaving, setCoverSaving] = useState(false);
+  const [coverSaved, setCoverSaved] = useState(false);
+
   const fetchWidgets = () => {
     authFetch('/api/widgets').then(r => r.json()).then(setWidgets).catch(() => {});
   };
 
-  useEffect(() => { fetchWidgets(); }, []);
+  useEffect(() => {
+    fetchWidgets();
+    authFetch('/api/settings').then(r => r.json()).then((s: Record<string, string>) => {
+      setCoverImage(s.widget_library_image || '');
+    }).catch(() => {});
+  }, []);
+
+  const saveCoverImage = async () => {
+    setCoverSaving(true);
+    await authFetch('/api/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ widget_library_image: coverImage }),
+    }).catch(() => {});
+    setCoverSaving(false);
+    setCoverSaved(true);
+    setTimeout(() => setCoverSaved(false), 2000);
+  };
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,6 +77,46 @@ export default function WidgetsTab() {
 
   return (
     <div className="space-y-8">
+      {/* Library Settings — cover image */}
+      <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6">
+        <h2 className="text-xl font-bold text-orange-800 mb-5 flex items-center gap-2">
+          <Image size={22} /> {t.widgetLibrarySettings}
+        </h2>
+        <div className="flex flex-col gap-3 max-w-lg">
+          <label className="block text-sm font-medium text-stone-600">{t.coverImage}</label>
+          {coverImage && (
+            <img
+              src={coverImage}
+              alt="cover"
+              className="w-32 h-32 object-contain rounded-xl border border-stone-200 bg-stone-50"
+              referrerPolicy="no-referrer"
+            />
+          )}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={coverImage}
+              onChange={e => setCoverImage(e.target.value)}
+              placeholder="https://… oder hochladen ↓"
+              className="flex-1 px-4 py-2.5 rounded-xl border-2 border-orange-100 focus:border-orange-400 focus:outline-none text-sm"
+            />
+            <button
+              type="button"
+              onClick={saveCoverImage}
+              disabled={coverSaving}
+              className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-5 py-2 rounded-xl transition-all disabled:opacity-50 text-sm"
+            >
+              {coverSaved ? '✓' : coverSaving ? '…' : t.save}
+            </button>
+          </div>
+          <ImageUpload
+            value={coverImage}
+            onChange={url => { setCoverImage(url); }}
+            label={t.coverImage}
+          />
+        </div>
+      </div>
+
       {/* Upload Form */}
       <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6">
         <h2 className="text-xl font-bold text-orange-800 mb-5 flex items-center gap-2">
@@ -177,11 +239,10 @@ export default function WidgetsTab() {
                     className="text-xs text-orange-700 break-all cursor-pointer select-all"
                     title="Klicken zum Kopieren"
                     onClick={() => {
-                      const link = `<a href="#" class="ka-widget" data-widget-id="${w.id}" data-widget-name="${w.name}" data-widget-entry="${w.entryFile}">🔧 ${w.name}</a>`;
-                      navigator.clipboard.writeText(link).catch(() => {});
+                      navigator.clipboard.writeText(`/widget-open/${w.id}`).catch(() => {});
                     }}
                   >
-                    {'<a class="ka-widget" data-widget-id="' + w.id + '">🔧 ' + w.name + '</a>'}
+                    /widget-open/{w.id}
                   </code>
                   <p className="text-xs text-stone-400 mt-0.5">Klicken zum Kopieren</p>
                 </div>
