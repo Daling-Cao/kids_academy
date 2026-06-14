@@ -143,8 +143,10 @@ export default function StudentDashboard({ user }: { user: User }) {
             </div>
           </div>
         ))}
+      </div>
 
-        {/* Widget Library — same card style as buildings */}
+      {/* Widget Library — separate row below buildings, same card style */}
+      <div className="flex justify-center mt-16">
         <div
           onClick={() => navigate('/widgets')}
           className="group relative flex flex-col items-center justify-end w-full max-w-sm cursor-pointer transition-all duration-300 hover:-translate-y-4"
