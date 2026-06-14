@@ -56,6 +56,7 @@ const translations = {
     awesomeJob: 'Tolle Arbeit! Du hast es dir verdient!',
     classroomNotFound: 'Klassenzimmer nicht gefunden.',
     noSegments: 'Noch keine Abschnitte verfügbar.',
+    generateTestData: 'Testdaten generieren',
     
     // Teacher Tabs Header
     teacherDashboard: 'Lehrer-Dashboard',
