@@ -123,6 +123,15 @@ db.exec(`
     FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS widgets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    entryFile TEXT NOT NULL DEFAULT 'index.html',
+    coverImage TEXT DEFAULT '',
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS custom_emojis (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,

@@ -84,3 +84,28 @@
   max-width: 100% !important;
   height: auto;
 }
+
+/* ── Widget links inside course content ── */
+.classroom-content a.ka-widget {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: linear-gradient(135deg, #fff7ed, #ffedd5);
+  border: 2px solid #fb923c;
+  border-radius: 12px;
+  color: #9a3412 !important;
+  font-weight: 700;
+  text-decoration: none !important;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.95rem;
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.15);
+  margin: 4px 0;
+}
+.classroom-content a.ka-widget:hover {
+  background: linear-gradient(135deg, #ffedd5, #fed7aa);
+  border-color: #ea580c;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(249, 115, 22, 0.25);
+}

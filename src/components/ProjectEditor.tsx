@@ -10,7 +10,7 @@ import 'quill-table-up/index.css';
 import ImageUpload from '../components/ImageUpload';
 import ProjectPreview from './ProjectPreview';
 import { authFetch } from '../App';
-import type { Building, Quiz, ProjectSegment } from '../types';
+import type { Building, Quiz, ProjectSegment, Widget } from '../types';
 
 // Register font whitelist
 const Font = Quill.import('formats/font') as any;
@@ -38,12 +38,17 @@ function HtmlEditor({ value, onChange, style, className }: {
     const quillRef = useRef<ReactQuill>(null);
     const toolbarId = useRef(`ql-tb-${++editorSeq}`).current;
     const triggerRef = useRef<HTMLSpanElement>(null);
+    const widgetTriggerRef = useRef<HTMLSpanElement>(null);
     const mdInputRef = useRef<HTMLInputElement>(null);
     const [showPicker, setShowPicker] = useState(false);
     const [rows, setRows] = useState(3);
     const [cols, setCols] = useState(3);
     const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
     const [importing, setImporting] = useState(false);
+    const [showWidgetPicker, setShowWidgetPicker] = useState(false);
+    const [widgetPickerPos, setWidgetPickerPos] = useState({ top: 0, left: 0 });
+    const [widgets, setWidgets] = useState<Widget[]>([]);
+    const [widgetsLoading, setWidgetsLoading] = useState(false);
 
     const modules = useMemo(() => ({
         toolbar: { container: `#${toolbarId}` },
@@ -72,6 +77,30 @@ function HtmlEditor({ value, onChange, style, className }: {
         setShowPicker(false);
         setRows(3);
         setCols(3);
+    };
+
+    const openWidgetPicker = () => {
+        if (widgetTriggerRef.current) {
+            const r = widgetTriggerRef.current.getBoundingClientRect();
+            setWidgetPickerPos({ top: r.bottom + 4, left: r.left });
+        }
+        if (!showWidgetPicker) {
+            setWidgetsLoading(true);
+            authFetch('/api/widgets').then(r => r.json()).then(data => {
+                setWidgets(data);
+                setWidgetsLoading(false);
+            }).catch(() => setWidgetsLoading(false));
+        }
+        setShowWidgetPicker(v => !v);
+    };
+
+    const insertWidget = (widget: Widget) => {
+        const quill = quillRef.current?.getEditor();
+        if (!quill) return;
+        const range = quill.getSelection(true);
+        const html = `<a href="#" class="ka-widget" data-widget-id="${widget.id}" data-widget-name="${widget.name}" data-widget-entry="${widget.entryFile}">🔧 ${widget.name}</a>`;
+        quill.clipboard.dangerouslyPasteHTML(range.index, html);
+        setShowWidgetPicker(false);
     };
 
     // Import a Markdown file plus any images it references. Select the .md note
@@ -140,6 +169,13 @@ function HtmlEditor({ value, onChange, style, className }: {
         const t = setTimeout(() => document.addEventListener('click', close), 50);
         return () => { clearTimeout(t); document.removeEventListener('click', close); };
     }, [showPicker]);
+
+    useEffect(() => {
+        if (!showWidgetPicker) return;
+        const close = () => setShowWidgetPicker(false);
+        const t = setTimeout(() => document.addEventListener('click', close), 50);
+        return () => { clearTimeout(t); document.removeEventListener('click', close); };
+    }, [showWidgetPicker]);
 
     return (
         <div style={{ position: 'relative' }}>
@@ -219,6 +255,16 @@ function HtmlEditor({ value, onChange, style, className }: {
                         onChange={importMarkdown}
                     />
                 </span>
+                <span className="ql-formats" ref={widgetTriggerRef}>
+                    <button
+                        type="button"
+                        onClick={openWidgetPicker}
+                        title="Werkzeug einfügen"
+                        style={{ width: 'auto', padding: '2px 6px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                        🔧 Widget
+                    </button>
+                </span>
             </div>
             <ReactQuill
                 ref={quillRef}
@@ -261,6 +307,52 @@ function HtmlEditor({ value, onChange, style, className }: {
                     <button type="button" onClick={() => setShowPicker(false)}
                         style={{ padding: '4px 8px', background: '#f3f4f6', color: '#374151', border: 'none', borderRadius: '7px', cursor: 'pointer' }}
                     >✕</button>
+                </div>,
+                document.body
+            )}
+            {showWidgetPicker && createPortal(
+                <div
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                        position: 'fixed', top: widgetPickerPos.top, left: widgetPickerPos.left,
+                        zIndex: 9999, background: '#fff',
+                        border: '1px solid #e5e7eb', borderRadius: '12px',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                        padding: '12px',
+                        minWidth: '220px', maxWidth: '320px',
+                        fontSize: '13px',
+                    }}
+                >
+                    <div style={{ fontWeight: 700, color: '#9a3412', marginBottom: '8px' }}>🔧 Werkzeug einfügen</div>
+                    {widgetsLoading ? (
+                        <div style={{ color: '#9ca3af', padding: '8px 0' }}>Wird geladen…</div>
+                    ) : widgets.length === 0 ? (
+                        <div style={{ color: '#9ca3af', padding: '8px 0' }}>Keine Werkzeuge vorhanden.</div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '240px', overflowY: 'auto' }}>
+                            {widgets.map(w => (
+                                <button
+                                    key={w.id}
+                                    type="button"
+                                    onClick={() => insertWidget(w)}
+                                    style={{
+                                        textAlign: 'left', padding: '8px 10px',
+                                        background: '#fff7ed', border: '1px solid #fed7aa',
+                                        borderRadius: '8px', cursor: 'pointer',
+                                        fontWeight: 600, color: '#9a3412',
+                                    }}
+                                    onMouseEnter={e => (e.currentTarget.style.background = '#ffedd5')}
+                                    onMouseLeave={e => (e.currentTarget.style.background = '#fff7ed')}
+                                >
+                                    🔧 {w.name}
+                                    {w.description && <div style={{ fontWeight: 400, color: '#78716c', fontSize: '11px', marginTop: '2px' }}>{w.description}</div>}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                    <button type="button" onClick={() => setShowWidgetPicker(false)}
+                        style={{ marginTop: '8px', padding: '4px 10px', background: '#f3f4f6', color: '#374151', border: 'none', borderRadius: '7px', cursor: 'pointer', width: '100%' }}
+                    >✕ Schließen</button>
                 </div>,
                 document.body
             )}

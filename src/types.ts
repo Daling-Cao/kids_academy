@@ -112,3 +112,12 @@ export interface StudentCoinInfo {
     nextRank: Rank | null;
     progress: number;
 }
+
+export interface Widget {
+    id: number;
+    name: string;
+    description: string;
+    entryFile: string;
+    coverImage: string;
+    createdAt: string;
+}

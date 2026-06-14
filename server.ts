@@ -7,6 +7,7 @@ import DOMPurify from 'isomorphic-dompurify';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import AdmZip from 'adm-zip';
 import db from './src/db.ts';
 
 // JWT secret — required in all environments
@@ -21,6 +22,24 @@ const uploadsDir = path.resolve(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+
+// ─── Widget files storage ─────────────────────────────────────────────
+const widgetsDir = path.resolve(process.cwd(), 'uploads', 'widgets');
+if (!fs.existsSync(widgetsDir)) {
+  fs.mkdirSync(widgetsDir, { recursive: true });
+}
+
+const widgetUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    filename: (_req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const ext = path.extname(file.originalname);
+      cb(null, uniqueSuffix + ext);
+    },
+  }),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB for widget zips
+});
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadsDir),
@@ -144,6 +163,10 @@ async function startServer() {
   app.use('/uploads', express.static(uploadsDir, {
     setHeaders: (res) => res.setHeader('X-Content-Type-Options', 'nosniff'),
   }));
+
+  // Widget files served without sandboxing so scripts run inside the iframe.
+  // Teacher-uploaded content only — no anonymous access to upload.
+  app.use('/widget-files', express.static(widgetsDir));
 
   // ─── Public Routes ──────────────────────────────────────────────
 
@@ -916,6 +939,113 @@ async function startServer() {
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     }
     db.prepare('DELETE FROM custom_emojis WHERE id = ?').run(id);
+    res.json({ success: true });
+  });
+
+  // ─── Widget Routes ───────────────────────────────────────────────
+
+  // List all widgets (students and teachers can browse)
+  app.get('/api/widgets', authMiddleware, (_req: AuthRequest, res: Response) => {
+    const widgets = db.prepare('SELECT * FROM widgets ORDER BY createdAt DESC').all();
+    res.json(widgets);
+  });
+
+  // Get single widget
+  app.get('/api/widgets/:id', authMiddleware, (req: AuthRequest, res: Response) => {
+    const widget = db.prepare('SELECT * FROM widgets WHERE id = ?').get(req.params.id);
+    if (!widget) return res.status(404).json({ error: 'Not found' });
+    res.json(widget);
+  });
+
+  // Upload a widget (teacher only) — accepts a zip archive or a single HTML file
+  app.post('/api/widgets', authMiddleware, teacherOnly, widgetUpload.single('file'), (req: AuthRequest, res: Response) => {
+    const { name, description } = req.body;
+    if (!name || !req.file) return res.status(400).json({ error: 'name and file are required' });
+
+    const widgetRecord = db.prepare(
+      'INSERT INTO widgets (name, description, entryFile) VALUES (?, ?, ?)'
+    ).run(name.trim(), (description || '').trim(), 'index.html');
+    const widgetId = widgetRecord.lastInsertRowid;
+
+    const widgetFolder = path.join(widgetsDir, String(widgetId));
+    fs.mkdirSync(widgetFolder, { recursive: true });
+
+    const tmpPath = req.file.path;
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    let entryFile = 'index.html';
+
+    try {
+      if (ext === '.zip') {
+        // Extract zip preserving folder structure; strip the common root folder if any
+        const zip = new AdmZip(tmpPath);
+        const entries = zip.getEntries();
+
+        // Determine if all entries share a common root folder (typical when zipping a folder)
+        const rootFolders = new Set(entries.map(e => e.entryName.split('/')[0]));
+        const singleRoot = rootFolders.size === 1 ? [...rootFolders][0] : null;
+
+        for (const entry of entries) {
+          if (entry.isDirectory) continue;
+          let relPath = entry.entryName;
+          if (singleRoot) relPath = relPath.slice(singleRoot.length + 1);
+          if (!relPath) continue;
+
+          // Block path traversal attempts
+          const dest = path.resolve(widgetFolder, relPath);
+          if (!dest.startsWith(widgetFolder + path.sep) && dest !== widgetFolder) continue;
+
+          fs.mkdirSync(path.dirname(dest), { recursive: true });
+          fs.writeFileSync(dest, entry.getData());
+        }
+
+        // Detect entry HTML file: prefer index.html at root, else first .html
+        if (fs.existsSync(path.join(widgetFolder, 'index.html'))) {
+          entryFile = 'index.html';
+        } else {
+          const findHtml = (dir: string, base = ''): string | null => {
+            for (const f of fs.readdirSync(dir)) {
+              const full = path.join(dir, f);
+              const rel = base ? `${base}/${f}` : f;
+              if (fs.statSync(full).isDirectory()) {
+                const found = findHtml(full, rel);
+                if (found) return found;
+              } else if (f.toLowerCase().endsWith('.html')) {
+                return rel;
+              }
+            }
+            return null;
+          };
+          entryFile = findHtml(widgetFolder) || 'index.html';
+        }
+      } else {
+        // Single file (HTML or other) — save as index.html
+        fs.copyFileSync(tmpPath, path.join(widgetFolder, 'index.html'));
+        entryFile = 'index.html';
+      }
+
+      fs.unlinkSync(tmpPath);
+      db.prepare('UPDATE widgets SET entryFile = ? WHERE id = ?').run(entryFile, widgetId);
+
+      const widget = db.prepare('SELECT * FROM widgets WHERE id = ?').get(widgetId);
+      res.json({ success: true, widget });
+    } catch (err: any) {
+      // Clean up on failure
+      try { fs.rmSync(widgetFolder, { recursive: true, force: true }); } catch {}
+      try { fs.unlinkSync(tmpPath); } catch {}
+      db.prepare('DELETE FROM widgets WHERE id = ?').run(widgetId);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Delete a widget (teacher only)
+  app.delete('/api/widgets/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    const widget = db.prepare('SELECT * FROM widgets WHERE id = ?').get(id);
+    if (!widget) return res.status(404).json({ error: 'Not found' });
+
+    const widgetFolder = path.join(widgetsDir, id);
+    try { fs.rmSync(widgetFolder, { recursive: true, force: true }); } catch {}
+    db.prepare('DELETE FROM widgets WHERE id = ?').run(id);
     res.json({ success: true });
   });
 

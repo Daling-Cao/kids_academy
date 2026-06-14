@@ -141,6 +141,18 @@ export default function StudentDashboard({ user }: { user: User }) {
           </div>
         ))}
       </div>
+      {/* Tool Library */}
+      <div className="mt-20 flex justify-center">
+        <button
+          onClick={() => navigate('/widgets')}
+          className="group flex items-center gap-3 bg-white border-2 border-orange-200 hover:border-orange-400 hover:bg-orange-50 text-orange-700 font-bold px-8 py-4 rounded-2xl shadow-md transition-all duration-200 hover:shadow-lg hover:-translate-y-1"
+        >
+          <span className="text-2xl group-hover:scale-110 transition-transform">🔧</span>
+          <span className="text-lg">{t.toolsLibrary}</span>
+          <span className="text-orange-400 group-hover:text-orange-600 transition-colors">→</span>
+        </button>
+      </div>
+
       <MessageButton user={user} />
       <StudentInbox user={user} />
     </div>
