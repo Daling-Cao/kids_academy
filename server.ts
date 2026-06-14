@@ -105,6 +105,33 @@ function sanitizeHtml(html: string): string {
   });
 }
 
+// Keep project-level progress in sync with segment progress: a project counts
+// as completed once every published segment has been completed by the student.
+// This prevents the door from showing "In Progress" when all the content inside
+// the room is actually finished.
+function syncProjectCompletion(userId: number | string, projectId: number | string): void {
+  const total = db.prepare(
+    'SELECT COUNT(*) AS c FROM project_segments WHERE projectId = ? AND isPublished = 1'
+  ).get(projectId) as any;
+  if (!total || total.c === 0) return;
+
+  const done = db.prepare(`
+    SELECT COUNT(*) AS c FROM user_segment_progress usp
+    JOIN project_segments ps ON usp.segmentId = ps.id
+    WHERE usp.userId = ? AND ps.projectId = ? AND ps.isPublished = 1 AND usp.state = 'completed'
+  `).get(userId, projectId) as any;
+  if (!done || done.c < total.c) return;
+
+  const existing = db.prepare('SELECT * FROM user_progress WHERE userId = ? AND projectId = ?').get(userId, projectId) as any;
+  if (existing) {
+    if (existing.state !== 'completed') {
+      db.prepare('UPDATE user_progress SET state = ? WHERE userId = ? AND projectId = ?').run('completed', userId, projectId);
+    }
+  } else {
+    db.prepare('INSERT INTO user_progress (userId, projectId, state) VALUES (?, ?, ?)').run(userId, projectId, 'completed');
+  }
+}
+
 async function startServer() {
   const app = express();
   const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -321,6 +348,8 @@ async function startServer() {
   app.get('/api/student/buildings/:buildingId/projects/:userId', authMiddleware, studentSelfOnly, (req: AuthRequest, res: Response) => {
     const { buildingId, userId } = req.params;
     const projects = db.prepare('SELECT * FROM projects WHERE buildingId = ? ORDER BY orderIndex ASC').all(buildingId) as any[];
+    // Heal any project whose segments are all done but whose project state lags behind.
+    projects.forEach(p => syncProjectCompletion(userId, p.id));
     const progress = db.prepare('SELECT * FROM user_progress WHERE userId = ?').all(userId) as any[];
 
     let previousCompleted = true;
@@ -412,6 +441,7 @@ async function startServer() {
   // Get single project progress
   app.get('/api/student/projects/:projectId/progress/:userId', authMiddleware, studentSelfOnly, (req: AuthRequest, res: Response) => {
     const { projectId, userId } = req.params;
+    syncProjectCompletion(userId, projectId);
     const prog = db.prepare('SELECT * FROM user_progress WHERE userId = ? AND projectId = ?').get(userId, projectId) as any;
     
     const segmentProgress = db.prepare(`
@@ -448,6 +478,11 @@ async function startServer() {
       db.prepare('UPDATE users SET coins = coins + 1 WHERE id = ?').run(userId);
       coinAwarded = true;
     }
+
+    // If this was the last published segment, mark the whole project completed
+    // so the room door immediately reflects the finished state.
+    const seg = db.prepare('SELECT projectId FROM project_segments WHERE id = ?').get(segmentId) as any;
+    if (seg) syncProjectCompletion(userId, seg.projectId);
 
     res.json({ success: true, coinAwarded });
   });
