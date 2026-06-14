@@ -1080,7 +1080,14 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     app.use(express.static(path.resolve('dist')));
-    // SPA fallback: serve index.html for all non-API routes (React Router)
+    // Prevent missing widget files from falling through to the SPA.
+    // The WidgetModal iframe is sandboxed (origin=null); if the SPA's
+    // index.html were served inside it, its crossorigin-tagged Vite
+    // assets would fail CORS and flood the console with errors.
+    app.use('/widget-files', (_req: Request, res: Response) => {
+      res.status(404).send('Widget file not found');
+    });
+    // SPA fallback: serve index.html for all other non-API routes (React Router)
     app.get('*', (_req: Request, res: Response) => {
       res.sendFile(path.resolve('dist', 'index.html'));
     });
