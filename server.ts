@@ -1079,7 +1079,15 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.resolve('dist')));
+    // Vite's production build adds crossorigin="" to <script> and <link> tags.
+    // When those tags are loaded inside a sandboxed iframe (origin=null), the
+    // browser sends an Origin header and requires Access-Control-Allow-Origin.
+    // Adding the header here prevents CORS errors in the WidgetModal iframe.
+    app.use(express.static(path.resolve('dist'), {
+      setHeaders(res) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      },
+    }));
     // Prevent missing widget files from falling through to the SPA.
     // The WidgetModal iframe is sandboxed (origin=null); if the SPA's
     // index.html were served inside it, its crossorigin-tagged Vite
