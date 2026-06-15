@@ -241,11 +241,9 @@ export default function Classroom({ user }: { user: User }) {
               <div className="rounded-2xl overflow-hidden border-4 border-orange-200 shadow-lg bg-stone-100 flex justify-center p-4">
                 <iframe
                   src={`https://scratch.mit.edu/projects/${project.scratchProjectId}/embed`}
-                  allowTransparency={true}
                   width="485"
                   height="402"
-                  frameBorder="0"
-                  scrolling="no"
+                  style={{ border: 0 }}
                   allowFullScreen
                   title="Scratch Project"
                 ></iframe>
