@@ -7,6 +7,7 @@ import BuildingView from './pages/BuildingView';
 import Classroom from './pages/Classroom';
 import TeacherDashboard from './pages/TeacherDashboard';
 import WidgetGallery from './pages/WidgetGallery';
+import WidgetOpenPage from './pages/WidgetOpenPage';
 import CookieConsent from './components/CookieConsent';
 import type { User } from './types';
 
@@ -122,6 +123,10 @@ export default function App() {
 
             <Route path="/widgets" element={
               user?.role === 'student' ? <WidgetGallery /> : <Navigate to="/" />
+            } />
+
+            <Route path="/widget-open/:id" element={
+              user ? <WidgetOpenPage /> : <Navigate to="/" />
             } />
           </Routes>
         </main>
