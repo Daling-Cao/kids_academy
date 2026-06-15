@@ -1084,8 +1084,17 @@ async function startServer() {
     // browser sends an Origin header and requires Access-Control-Allow-Origin.
     // Adding the header here prevents CORS errors in the WidgetModal iframe.
     app.use(express.static(path.resolve('dist'), {
-      setHeaders(res) {
+      setHeaders(res, filePath) {
         res.setHeader('Access-Control-Allow-Origin', '*');
+        // index.html must never be cached: it points at the current hashed
+        // asset bundle. If a browser or proxy serves a stale index.html after a
+        // deploy, the whole app stays on the old build. Hashed assets under
+        // /assets/* are immutable, so they can be cached aggressively.
+        if (filePath.endsWith('index.html')) {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
       },
     }));
     // Prevent missing widget files from falling through to the SPA.
@@ -1095,8 +1104,10 @@ async function startServer() {
     app.use('/widget-files', (_req: Request, res: Response) => {
       res.status(404).send('Widget file not found');
     });
-    // SPA fallback: serve index.html for all other non-API routes (React Router)
+    // SPA fallback: serve index.html for all other non-API routes (React Router).
+    // Same no-cache rule so navigations always fetch the latest HTML.
     app.get('*', (_req: Request, res: Response) => {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.sendFile(path.resolve('dist', 'index.html'));
     });
   }
