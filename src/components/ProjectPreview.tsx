@@ -1,6 +1,9 @@
+import React, { useState } from 'react';
 import { X, Download, CheckCircle2, Lock } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { sanitizeHtml } from '../utils/sanitize';
+import { authFetch } from '../App';
+import WidgetModal from './WidgetModal';
 import type { Quiz, ProjectSegment } from '../types';
 
 interface PreviewProject {
@@ -17,8 +20,26 @@ interface PreviewProject {
 // including unsaved changes). Correct quiz answers are highlighted in green.
 export default function ProjectPreview({ project, onClose }: { project: PreviewProject; onClose: () => void }) {
     const { t } = useI18n();
+    const [activeWidget, setActiveWidget] = useState<{ id: number; name: string; entryFile: string } | null>(null);
 
     const publishedSegments = (project.segments || []).filter(s => !!s.isPublished);
+
+    // Open widget links (/widget-open/:id) in an inline modal, matching the
+    // student Classroom. Without this the link would navigate away and unmount
+    // the preview. Returns nothing — purely a side effect on click.
+    const handleContentClick = async (e: React.MouseEvent<HTMLDivElement>) => {
+        const anchor = (e.target as Element).closest('a[href]');
+        if (!anchor) return;
+        const href = anchor.getAttribute('href') || '';
+        const m = href.match(/^\/widget-open\/(\d+)$/);
+        if (!m) return;
+        e.preventDefault();
+        try {
+            const res = await authFetch(`/api/widgets/${m[1]}`);
+            const w = await res.json();
+            if (w.id) setActiveWidget({ id: w.id, name: w.name, entryFile: w.entryFile || 'index.html' });
+        } catch { /* ignore */ }
+    };
 
     const getQuizzes = (seg: ProjectSegment): Quiz[] => {
         const q = seg.quizzes;
@@ -110,6 +131,7 @@ export default function ProjectPreview({ project, onClose }: { project: PreviewP
                                         {sContent && (
                                             <div
                                                 className="prose prose-orange max-w-none mb-12 text-stone-700 leading-relaxed text-lg classroom-content"
+                                                onClick={handleContentClick}
                                                 dangerouslySetInnerHTML={{ __html: sanitizeHtml(sContent) }}
                                             />
                                         )}
@@ -172,6 +194,15 @@ export default function ProjectPreview({ project, onClose }: { project: PreviewP
                     </div>
                 </div>
             </div>
+
+            {activeWidget && (
+                <WidgetModal
+                    widgetId={activeWidget.id}
+                    widgetName={activeWidget.name}
+                    entryFile={activeWidget.entryFile}
+                    onClose={() => setActiveWidget(null)}
+                />
+            )}
         </div>
     );
 }
