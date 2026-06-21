@@ -40,6 +40,8 @@ function HtmlEditor({ value, onChange, style, className }: {
     const triggerRef = useRef<HTMLSpanElement>(null);
     const widgetTriggerRef = useRef<HTMLSpanElement>(null);
     const mdInputRef = useRef<HTMLInputElement>(null);
+    const folderInputRef = useRef<HTMLInputElement>(null);
+    const [mdChoices, setMdChoices] = useState<{ mds: File[]; all: File[] } | null>(null);
     const [showPicker, setShowPicker] = useState(false);
     const [rows, setRows] = useState(3);
     const [cols, setCols] = useState(3);
@@ -107,21 +109,16 @@ function HtmlEditor({ value, onChange, style, className }: {
         setShowWidgetPicker(false);
     };
 
-    // Import a Markdown file plus any images it references. Select the .md note
-    // together with its image files (Obsidian stores attachments as separate files).
-    // Local image references — both standard ![alt](file.png) and Obsidian embeds
-    // ![[file.png]] / ![[file.png|size]] — are uploaded and rewritten to their URLs.
-    const importMarkdown = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files: File[] = e.target.files ? Array.from(e.target.files) : [];
-        e.target.value = '';
-        if (files.length === 0) return;
+    const isImageFile = (f: File) =>
+        f.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(f.name);
 
-        const mdFile = files.find(f => /\.(md|markdown)$/i.test(f.name));
-        if (!mdFile) {
-            alert('Bitte wähle eine Markdown-Datei (.md) aus.');
-            return;
-        }
-        const imageFiles = files.filter(f => f.type.startsWith('image/'));
+    // Import a Markdown note plus any images it references, rewriting local image
+    // references — both standard ![alt](file.png) and Obsidian embeds
+    // ![[file.png]] / ![[file.png|size]] — to their uploaded URLs. `allFiles` may
+    // include images from a sibling attachments subfolder (folder import), since
+    // images are matched by basename.
+    const runImport = async (mdFile: File, allFiles: File[]) => {
+        const imageFiles = allFiles.filter(isImageFile);
 
         setImporting(true);
         try {
@@ -164,6 +161,25 @@ function HtmlEditor({ value, onChange, style, className }: {
             onChange(html);
         } finally {
             setImporting(false);
+        }
+    };
+
+    // Shared handler for both the multi-file picker and the folder picker.
+    // A folder may contain several notes, so let the teacher pick which one.
+    const handleImportFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files: File[] = e.target.files ? Array.from(e.target.files) : [];
+        e.target.value = '';
+        if (files.length === 0) return;
+
+        const mds = files.filter(f => /\.(md|markdown)$/i.test(f.name));
+        if (mds.length === 0) {
+            alert('Keine Markdown-Datei (.md) gefunden.');
+            return;
+        }
+        if (mds.length === 1) {
+            await runImport(mds[0], files);
+        } else {
+            setMdChoices({ mds, all: files });
         }
     };
 
@@ -256,7 +272,23 @@ function HtmlEditor({ value, onChange, style, className }: {
                         multiple
                         accept=".md,.markdown,text/markdown,image/*"
                         style={{ display: 'none' }}
-                        onChange={importMarkdown}
+                        onChange={handleImportFiles}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => folderInputRef.current?.click()}
+                        disabled={importing}
+                        title="Ganzen Ordner importieren — Notiz samt Bildern aus Unterordnern (z. B. attachments)"
+                        style={{ width: 'auto', padding: '2px 6px', fontSize: '12px', fontWeight: 600, cursor: importing ? 'wait' : 'pointer', opacity: importing ? 0.6 : 1 }}
+                    >
+                        {importing ? '…' : '📁 Ordner'}
+                    </button>
+                    <input
+                        ref={folderInputRef}
+                        type="file"
+                        {...({ webkitdirectory: '', directory: '' } as any)}
+                        style={{ display: 'none' }}
+                        onChange={handleImportFiles}
                     />
                 </span>
                 <span className="ql-formats" ref={widgetTriggerRef}>
@@ -311,6 +343,56 @@ function HtmlEditor({ value, onChange, style, className }: {
                     <button type="button" onClick={() => setShowPicker(false)}
                         style={{ padding: '4px 8px', background: '#f3f4f6', color: '#374151', border: 'none', borderRadius: '7px', cursor: 'pointer' }}
                     >✕</button>
+                </div>,
+                document.body
+            )}
+            {mdChoices && createPortal(
+                <div
+                    onClick={() => setMdChoices(null)}
+                    style={{
+                        position: 'fixed', inset: 0, zIndex: 10000,
+                        background: 'rgba(0,0,0,0.35)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                >
+                    <div
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                            background: '#fff', borderRadius: '14px',
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+                            padding: '18px', width: '420px', maxWidth: '90vw',
+                            fontSize: '13px',
+                        }}
+                    >
+                        <div style={{ fontWeight: 700, color: '#9a3412', marginBottom: '4px' }}>📁 Welche Notiz importieren?</div>
+                        <div style={{ color: '#78716c', marginBottom: '10px' }}>Der Ordner enthält mehrere Markdown-Dateien. Bilder werden aus dem gesamten Ordner übernommen.</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '320px', overflowY: 'auto' }}>
+                            {mdChoices.mds.map((f, i) => (
+                                <button
+                                    key={i}
+                                    type="button"
+                                    onClick={() => {
+                                        const all = mdChoices.all;
+                                        setMdChoices(null);
+                                        runImport(f, all);
+                                    }}
+                                    style={{
+                                        textAlign: 'left', padding: '8px 10px',
+                                        background: '#fff7ed', border: '1px solid #fed7aa',
+                                        borderRadius: '8px', cursor: 'pointer',
+                                        fontWeight: 600, color: '#9a3412',
+                                    }}
+                                    onMouseEnter={e => (e.currentTarget.style.background = '#ffedd5')}
+                                    onMouseLeave={e => (e.currentTarget.style.background = '#fff7ed')}
+                                >
+                                    📄 {(f as any).webkitRelativePath || f.name}
+                                </button>
+                            ))}
+                        </div>
+                        <button type="button" onClick={() => setMdChoices(null)}
+                            style={{ marginTop: '12px', padding: '6px 10px', background: '#f3f4f6', color: '#374151', border: 'none', borderRadius: '7px', cursor: 'pointer', width: '100%' }}
+                        >✕ Abbrechen</button>
+                    </div>
                 </div>,
                 document.body
             )}
