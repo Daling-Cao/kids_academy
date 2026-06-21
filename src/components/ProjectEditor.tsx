@@ -532,7 +532,7 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
         const newSegments = [...(project.segments || [])];
         const seg = newSegments[sIndex] as any;
         const quizzes = Array.isArray(seg[qField]) ? seg[qField] : [];
-        if (quizzes.length >= 3) return;
+        if (quizzes.length >= 5) return;
         seg[qField] = [...quizzes, { question: '', options: ['', '', '', ''], correctOptionIndex: 0, correctOptionIndices: [0], isMultiSelect: false }];
         newSegments[sIndex] = seg;
         setProject({ ...project, segments: newSegments });
@@ -754,8 +754,8 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
 
                                     <div className="border-t border-stone-200 pt-6">
                                         <div className="flex justify-between items-center mb-4">
-                                            <h4 className="text-lg font-bold text-stone-700">Segment Quizzes (Max 3)</h4>
-                                            {segQuizzes.length < 3 && (
+                                            <h4 className="text-lg font-bold text-stone-700">Segment Quizzes (Max 5)</h4>
+                                            {segQuizzes.length < 5 && (
                                                 <button
                                                     type="button"
                                                     onClick={() => handleAddQuiz(sIndex)}
