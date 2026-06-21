@@ -10,6 +10,7 @@ import 'quill-table-up/index.css';
 import ImageUpload from '../components/ImageUpload';
 import ProjectPreview from './ProjectPreview';
 import { authFetch } from '../App';
+import { uploadFile } from '../lib/upload';
 import type { Building, Quiz, ProjectSegment, Widget } from '../types';
 
 // Register font whitelist
@@ -47,6 +48,7 @@ function HtmlEditor({ value, onChange, style, className }: {
     const [cols, setCols] = useState(3);
     const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
     const [importing, setImporting] = useState(false);
+    const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(null);
     const [showWidgetPicker, setShowWidgetPicker] = useState(false);
     const [widgetPickerPos, setWidgetPickerPos] = useState({ top: 0, left: 0 });
     const [widgets, setWidgets] = useState<Widget[]>([]);
@@ -121,19 +123,19 @@ function HtmlEditor({ value, onChange, style, className }: {
         const imageFiles = allFiles.filter(isImageFile);
 
         setImporting(true);
+        setImportProgress({ done: 0, total: imageFiles.length });
         try {
             // Upload each image, keyed by its filename (basename) for lookup.
             const urlByName: Record<string, string> = {};
-            for (const img of imageFiles) {
-                const formData = new FormData();
-                formData.append('image', img);
+            for (let i = 0; i < imageFiles.length; i++) {
+                const img = imageFiles[i];
                 try {
-                    const res = await authFetch('/api/upload', { method: 'POST', body: formData });
-                    const data = await res.json();
-                    if (data.success) urlByName[img.name] = data.url;
+                    const data = await uploadFile(img);
+                    if (data.success && data.url) urlByName[img.name] = data.url;
                 } catch {
                     // Skip failed uploads; the original reference is left untouched.
                 }
+                setImportProgress({ done: i + 1, total: imageFiles.length });
             }
 
             const resolveUrl = (ref: string): string | undefined => {
@@ -161,6 +163,7 @@ function HtmlEditor({ value, onChange, style, className }: {
             onChange(html);
         } finally {
             setImporting(false);
+            setImportProgress(null);
         }
     };
 
@@ -290,6 +293,13 @@ function HtmlEditor({ value, onChange, style, className }: {
                         style={{ display: 'none' }}
                         onChange={handleImportFiles}
                     />
+                    {importProgress && (
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: '#9a3412', marginLeft: '4px' }}>
+                            {importProgress.total > 0
+                                ? `Bilder ${importProgress.done}/${importProgress.total}`
+                                : 'Importiere…'}
+                        </span>
+                    )}
                 </span>
                 <span className="ql-formats" ref={widgetTriggerRef}>
                     <button

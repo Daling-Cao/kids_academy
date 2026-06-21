@@ -9,9 +9,12 @@ import TeacherDashboard from './pages/TeacherDashboard';
 import WidgetGallery from './pages/WidgetGallery';
 import WidgetOpenPage from './pages/WidgetOpenPage';
 import CookieConsent from './components/CookieConsent';
+import TopLoadingBar from './components/TopLoadingBar';
+import { trackRequest } from './lib/progress';
 import type { User } from './types';
 
 // ─── Authenticated fetch wrapper ──────────────────────────────────
+// Every call also drives the global top loading bar via trackRequest.
 export function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const token = localStorage.getItem('token');
   const headers: Record<string, string> = {
@@ -24,7 +27,7 @@ export function authFetch(url: string, options: RequestInit = {}): Promise<Respo
   if (!(options.body instanceof FormData)) {
     headers['Content-Type'] = headers['Content-Type'] || 'application/json';
   }
-  return fetch(url, { ...options, headers });
+  return trackRequest(fetch(url, { ...options, headers }));
 }
 
 export default function App() {
@@ -53,6 +56,7 @@ export default function App() {
 
   return (
     <Router>
+      <TopLoadingBar />
       <div className="min-h-screen bg-orange-50 font-sans text-stone-800">
         {user && (
           <nav className="bg-orange-200 p-4 flex justify-between items-center shadow-sm">

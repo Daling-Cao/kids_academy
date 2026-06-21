@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { User } from '../types';
 import { useI18n } from '../i18n';
+import { trackRequest } from '../lib/progress';
 
 interface LoginProps {
   onLogin: (user: User, token: string) => void;
@@ -19,11 +20,11 @@ export default function Login({ onLogin }: LoginProps) {
     setError('');
 
     try {
-      const res = await fetch('/api/login', {
+      const res = await trackRequest(fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
-      });
+      }));
       const data = await res.json();
       if (data.success) {
         onLogin(data.user, data.token);

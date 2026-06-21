@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Upload, X } from 'lucide-react';
-import { authFetch } from '../App';
+import { uploadFile } from '../lib/upload';
 
 interface ImageUploadProps {
     value: string;
@@ -10,6 +10,7 @@ interface ImageUploadProps {
 
 export default function ImageUpload({ value, onChange, label = 'Cover Image' }: ImageUploadProps) {
     const [uploading, setUploading] = useState(false);
+    const [progress, setProgress] = useState(0);
     const [error, setError] = useState('');
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -17,19 +18,12 @@ export default function ImageUpload({ value, onChange, label = 'Cover Image' }: 
         if (!file) return;
 
         setUploading(true);
+        setProgress(0);
         setError('');
 
         try {
-            const formData = new FormData();
-            formData.append('image', file);
-
-            const res = await authFetch('/api/upload', {
-                method: 'POST',
-                body: formData,
-            });
-
-            const data = await res.json();
-            if (data.success) {
+            const data = await uploadFile(file, setProgress);
+            if (data.success && data.url) {
                 onChange(data.url);
             } else {
                 setError(data.message || 'Upload failed');
@@ -48,7 +42,7 @@ export default function ImageUpload({ value, onChange, label = 'Cover Image' }: 
                 <label className="flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-orange-100 hover:border-orange-300 cursor-pointer transition-colors bg-white">
                     <Upload size={16} className="text-orange-500" />
                     <span className="text-sm font-medium text-stone-600">
-                        {uploading ? 'Uploading...' : 'Choose Image'}
+                        {uploading ? `Uploading… ${progress}%` : 'Choose Image'}
                     </span>
                     <input
                         type="file"
@@ -58,6 +52,14 @@ export default function ImageUpload({ value, onChange, label = 'Cover Image' }: 
                         className="hidden"
                     />
                 </label>
+                {uploading && (
+                    <div className="flex-1 min-w-[120px] h-2 bg-orange-100 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-orange-500 rounded-full transition-all duration-200"
+                            style={{ width: `${progress}%` }}
+                        />
+                    </div>
+                )}
                 {value && (
                     <div className="relative">
                         <img src={value} alt="Preview" className="h-12 w-12 object-cover rounded-lg border border-orange-200" />
