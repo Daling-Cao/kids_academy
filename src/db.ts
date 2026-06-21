@@ -42,6 +42,8 @@ db.exec(`
     content TEXT,
     scratchFileUrl TEXT,
     scratchProjectId TEXT,
+    finalScratchFileUrl TEXT,
+    finalScratchProjectId TEXT,
     coverImage TEXT,
     isLocked BOOLEAN DEFAULT 1,
     orderIndex INTEGER NOT NULL,
@@ -190,6 +192,15 @@ if (projectsInfo.length > 0) {
       ALTER TABLE projects ADD COLUMN titleDe TEXT;
       ALTER TABLE projects ADD COLUMN descriptionZh TEXT;
       ALTER TABLE projects ADD COLUMN descriptionDe TEXT;
+    `);
+  }
+
+  // Final ("solution") Scratch project, revealed only after completion.
+  const hasFinalScratch = projectsInfo.some(col => col.name === 'finalScratchProjectId');
+  if (!hasFinalScratch) {
+    db.exec(`
+      ALTER TABLE projects ADD COLUMN finalScratchFileUrl TEXT;
+      ALTER TABLE projects ADD COLUMN finalScratchProjectId TEXT;
     `);
   }
 }

@@ -466,6 +466,8 @@ interface ProjectData {
     descriptionDe?: string;
     scratchFileUrl: string;
     scratchProjectId: string;
+    finalScratchFileUrl?: string;
+    finalScratchProjectId?: string;
     coverImage: string;
     tags?: string[];
     segments: ProjectSegment[];
@@ -675,6 +677,33 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                             className="w-full px-4 py-2 rounded-xl border-2 border-orange-100 focus:border-orange-400 focus:outline-none"
                             placeholder="e.g. 10128407"
                         />
+                    </div>
+                </div>
+
+                <div className="mt-4 p-4 rounded-xl bg-emerald-50 border-2 border-emerald-100">
+                    <p className="text-sm font-bold text-emerald-800 mb-1">🏁 Fertiges Projekt (erst nach Abschluss sichtbar)</p>
+                    <p className="text-xs text-emerald-700 mb-3">Die Schüler sehen zuerst nur die Übungs-/Mitmach-Version. Diese fertige Lösung wird erst angezeigt, wenn die Lektion abgeschlossen ist.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-stone-600 mb-1">Finale Scratch-Datei (.sb3) URL</label>
+                            <input
+                                type="text"
+                                value={project.finalScratchFileUrl || ''}
+                                onChange={(e) => setProject({ ...project, finalScratchFileUrl: e.target.value })}
+                                className="w-full px-4 py-2 rounded-xl border-2 border-emerald-100 focus:border-emerald-400 focus:outline-none"
+                                placeholder="https://example.com/final.sb3"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-stone-600 mb-1">Finale Scratch Project ID (Embed)</label>
+                            <input
+                                type="text"
+                                value={project.finalScratchProjectId || ''}
+                                onChange={(e) => setProject({ ...project, finalScratchProjectId: e.target.value })}
+                                className="w-full px-4 py-2 rounded-xl border-2 border-emerald-100 focus:border-emerald-400 focus:outline-none"
+                                placeholder="e.g. 10128407"
+                            />
+                        </div>
                     </div>
                 </div>
 

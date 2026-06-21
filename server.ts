@@ -703,12 +703,12 @@ async function startServer() {
 
   // Add new project
   app.post('/api/projects', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
-    const { buildingId, title, titleZh = '', titleDe = '', description, descriptionZh = '', descriptionDe = '', scratchFileUrl, scratchProjectId, coverImage, tags, segments } = req.body;
+    const { buildingId, title, titleZh = '', titleDe = '', description, descriptionZh = '', descriptionDe = '', scratchFileUrl, scratchProjectId, finalScratchFileUrl = '', finalScratchProjectId = '', coverImage, tags, segments } = req.body;
     const maxOrder = db.prepare('SELECT MAX(orderIndex) as max FROM projects WHERE buildingId = ?').get(buildingId) as { max: number };
     const orderIndex = (maxOrder.max || 0) + 1;
 
-    const result = db.prepare('INSERT INTO projects (buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, isLocked, orderIndex, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, 1, orderIndex, JSON.stringify(tags || []));
+    const result = db.prepare('INSERT INTO projects (buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, isLocked, orderIndex, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, 1, orderIndex, JSON.stringify(tags || []));
 
     const projectId = result.lastInsertRowid;
 
@@ -759,10 +759,10 @@ async function startServer() {
   // Update project
   app.put('/api/projects/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
     const { id } = req.params;
-    const { buildingId, title, titleZh = '', titleDe = '', description, descriptionZh = '', descriptionDe = '', scratchFileUrl, scratchProjectId, coverImage, tags, segments } = req.body;
+    const { buildingId, title, titleZh = '', titleDe = '', description, descriptionZh = '', descriptionDe = '', scratchFileUrl, scratchProjectId, finalScratchFileUrl = '', finalScratchProjectId = '', coverImage, tags, segments } = req.body;
 
-    db.prepare('UPDATE projects SET buildingId = ?, title = ?, titleZh = ?, titleDe = ?, description = ?, descriptionZh = ?, descriptionDe = ?, scratchFileUrl = ?, scratchProjectId = ?, coverImage = ?, tags = ? WHERE id = ?')
-      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, coverImage, JSON.stringify(tags || []), id);
+    db.prepare('UPDATE projects SET buildingId = ?, title = ?, titleZh = ?, titleDe = ?, description = ?, descriptionZh = ?, descriptionDe = ?, scratchFileUrl = ?, scratchProjectId = ?, finalScratchFileUrl = ?, finalScratchProjectId = ?, coverImage = ?, tags = ? WHERE id = ?')
+      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, JSON.stringify(tags || []), id);
 
     if (Array.isArray(segments)) {
       const existingSegs = (db.prepare('SELECT id FROM project_segments WHERE projectId = ?').all(id) as any[]).map(s => s.id);

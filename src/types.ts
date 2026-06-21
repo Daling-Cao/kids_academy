@@ -49,6 +49,8 @@ export interface Project {
     descriptionDe?: string;
     scratchFileUrl: string;
     scratchProjectId: string;
+    finalScratchFileUrl?: string;
+    finalScratchProjectId?: string;
     coverImage: string;
     isLocked: boolean | number;
     orderIndex: number;

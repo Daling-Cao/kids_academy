@@ -11,6 +11,8 @@ interface ProjectData {
     description: string;
     scratchFileUrl: string;
     scratchProjectId: string;
+    finalScratchFileUrl?: string;
+    finalScratchProjectId?: string;
     coverImage: string;
     tags: string[];
     segments: ProjectSegment[];
@@ -32,6 +34,8 @@ export default function ProjectsTab() {
         description: '',
         scratchFileUrl: '',
         scratchProjectId: '',
+        finalScratchFileUrl: '',
+        finalScratchProjectId: '',
         coverImage: '',
         tags: [],
         segments: []
@@ -73,7 +77,7 @@ export default function ProjectsTab() {
             body: JSON.stringify(newProject)
         });
         setShowAddForm(false);
-        setNewProject({ buildingId: buildings[0]?.id || 1, title: '', description: '', scratchFileUrl: '', scratchProjectId: '', coverImage: '', tags: [], segments: [] });
+        setNewProject({ buildingId: buildings[0]?.id || 1, title: '', description: '', scratchFileUrl: '', scratchProjectId: '', finalScratchFileUrl: '', finalScratchProjectId: '', coverImage: '', tags: [], segments: [] });
         fetchProjects();
     };
 
@@ -417,6 +421,8 @@ export default function ProjectsTab() {
                                                             description: project.description,
                                                             scratchFileUrl: project.scratchFileUrl,
                                                             scratchProjectId: project.scratchProjectId,
+                                                            finalScratchFileUrl: project.finalScratchFileUrl || '',
+                                                            finalScratchProjectId: project.finalScratchProjectId || '',
                                                             coverImage: project.coverImage,
                                                             tags: project.tags || [],
                                                             segments: project.segments || [],
@@ -463,7 +469,7 @@ export default function ProjectsTab() {
                                     </button>
                                     <button
                                         onClick={() => {
-                                            setEditingProject({ id: project.id, buildingId: project.buildingId, title: project.title, description: project.description, scratchFileUrl: project.scratchFileUrl, scratchProjectId: project.scratchProjectId, coverImage: project.coverImage, tags: project.tags || [], segments: project.segments || [] });
+                                            setEditingProject({ id: project.id, buildingId: project.buildingId, title: project.title, description: project.description, scratchFileUrl: project.scratchFileUrl, scratchProjectId: project.scratchProjectId, finalScratchFileUrl: project.finalScratchFileUrl || '', finalScratchProjectId: project.finalScratchProjectId || '', coverImage: project.coverImage, tags: project.tags || [], segments: project.segments || [] });
                                             setShowAddForm(false);
                                         }}
                                         className="p-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors shadow-sm"

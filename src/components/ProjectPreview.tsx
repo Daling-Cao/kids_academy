@@ -12,6 +12,8 @@ interface PreviewProject {
     coverImage?: string;
     scratchFileUrl?: string;
     scratchProjectId?: string;
+    finalScratchFileUrl?: string;
+    finalScratchProjectId?: string;
     segments?: ProjectSegment[];
 }
 
@@ -110,6 +112,34 @@ export default function ProjectPreview({ project, onClose }: { project: PreviewP
                                 <span className="flex items-center gap-2 bg-orange-500 text-white px-6 py-3 rounded-xl font-bold shadow-md">
                                     <Download size={24} /> {t.downloadSb3}
                                 </span>
+                            </div>
+                        )}
+
+                        {/* Fertiges Projekt — in der Vorschau immer gezeigt, mit Hinweis dass es Schülern erst nach Abschluss erscheint */}
+                        {(project.finalScratchProjectId || project.finalScratchFileUrl) && (
+                            <div className="mb-12">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <CheckCircle2 size={22} className="text-emerald-600" />
+                                    <h3 className="text-xl font-bold text-emerald-800">{t.finalProjectTitle}</h3>
+                                    <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">{t.finalProjectLocked}</span>
+                                </div>
+                                {project.finalScratchProjectId && (
+                                    <div className="rounded-2xl overflow-hidden border-4 border-emerald-200 shadow-lg bg-stone-100 flex justify-center p-4 mb-4">
+                                        <iframe
+                                            src={`https://scratch.mit.edu/projects/${project.finalScratchProjectId}/embed`}
+                                            width="485"
+                                            height="402"
+                                            style={{ border: 0 }}
+                                            allowFullScreen
+                                            title="Finished Scratch Project"
+                                        ></iframe>
+                                    </div>
+                                )}
+                                {project.finalScratchFileUrl && (
+                                    <span className="inline-flex items-center gap-2 bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold shadow-md">
+                                        <Download size={24} /> {t.downloadSb3}
+                                    </span>
+                                )}
                             </div>
                         )}
 
