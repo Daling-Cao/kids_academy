@@ -14,7 +14,9 @@ export interface AuthUser extends User {
 
 export interface Quiz {
     question: string;
+    questionImage?: string;
     options: string[];
+    optionImages?: string[];
     correctOptionIndex?: number;
     correctOptionIndices?: number[];
     isMultiSelect?: boolean;

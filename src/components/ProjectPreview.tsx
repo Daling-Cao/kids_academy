@@ -178,7 +178,18 @@ export default function ProjectPreview({ project, onClose }: { project: PreviewP
                                                                     <div className="bg-orange-100 text-orange-700 w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg shrink-0">
                                                                         {qIndex + 1}
                                                                     </div>
-                                                                    <div className="prose prose-orange max-w-none text-xl font-medium text-stone-800" dangerouslySetInnerHTML={{ __html: sanitizeHtml(quiz.question) }} />
+                                                                    <div className="min-w-0 flex-1">
+                                                                        {quiz.question && (
+                                                                            <div className="prose prose-orange max-w-none text-xl font-medium text-stone-800" dangerouslySetInnerHTML={{ __html: sanitizeHtml(quiz.question) }} />
+                                                                        )}
+                                                                        {quiz.questionImage && (
+                                                                            <img
+                                                                                src={quiz.questionImage}
+                                                                                alt={`Bild zu Frage ${qIndex + 1}`}
+                                                                                className="mt-4 max-h-80 w-auto max-w-full rounded-2xl border border-orange-100 object-contain"
+                                                                            />
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-14">
                                                                     {quiz.options.map((opt, oIndex) => {
@@ -195,7 +206,16 @@ export default function ProjectPreview({ project, onClose }: { project: PreviewP
                                                                                 <div className={`w-6 h-6 rounded flex items-center justify-center shrink-0 ${quiz.isMultiSelect ? '' : 'rounded-full'} ${isCorrect ? 'bg-green-500' : 'border-2 border-stone-300'}`}>
                                                                                     {isCorrect && <div className={quiz.isMultiSelect ? 'w-3 h-3 bg-white rounded-sm' : 'w-3 h-3 bg-white rounded-full'} />}
                                                                                 </div>
-                                                                                <span className="flex-1 leading-tight">{opt}</span>
+                                                                                <span className="flex min-w-0 flex-1 flex-col gap-3 leading-tight">
+                                                                                    {quiz.optionImages?.[oIndex] && (
+                                                                                        <img
+                                                                                            src={quiz.optionImages[oIndex]}
+                                                                                            alt={opt || `Antwort ${oIndex + 1}`}
+                                                                                            className="h-40 w-full rounded-xl object-contain"
+                                                                                        />
+                                                                                    )}
+                                                                                    {opt && <span>{opt}</span>}
+                                                                                </span>
                                                                                 {isCorrect && <CheckCircle2 className="text-green-500 shrink-0" size={24} />}
                                                                             </div>
                                                                         );

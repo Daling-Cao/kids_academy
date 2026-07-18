@@ -8,6 +8,7 @@ KidsAcademy is a modern, gamified learning platform designed for kids. It combin
 
 - **🎯 Interactive Projects**: Gamified learning modules organized by "Buildings".
 - **✅ Multi-select Quizzes**: Advanced quiz system supporting multiple correct answers.
+- **🖼️ Image-based Quizzes**: Teachers can add optional images to question prompts and individual answer choices. Answers can use text, an image, or both, and are supported in teacher previews and the student classroom.
 - **💬 Teacher-Student Messaging**: In-app communication with reply capabilities.
 - **🪙 Reward & Rank System**: Earn "BlockCoins" by completing projects and level up your rank.
 - **👨‍🏫 Teacher Dashboard**: Manage students, projects, buildings, and messages.

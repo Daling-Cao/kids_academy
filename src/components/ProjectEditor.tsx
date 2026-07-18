@@ -13,6 +13,10 @@ import { authFetch } from '../App';
 import { uploadFile } from '../lib/upload';
 import type { Building, Quiz, ProjectSegment, Widget } from '../types';
 
+// react-quill-new's published props omit React's ref attribute even though the
+// component forwards the editor instance at runtime.
+const QuillEditor = ReactQuill as any;
+
 // Register font whitelist
 const Font = Quill.import('formats/font') as any;
 Font.whitelist = ['arial', 'georgia', 'times', 'courier', 'verdana', 'comic'];
@@ -312,7 +316,7 @@ function HtmlEditor({ value, onChange, style, className }: {
                     </button>
                 </span>
             </div>
-            <ReactQuill
+            <QuillEditor
                 ref={quillRef}
                 theme="snow"
                 value={value}
@@ -535,7 +539,15 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
         const seg = newSegments[sIndex] as any;
         const quizzes = Array.isArray(seg[qField]) ? seg[qField] : [];
         if (quizzes.length >= 5) return;
-        seg[qField] = [...quizzes, { question: '', options: ['', '', '', ''], correctOptionIndex: 0, correctOptionIndices: [0], isMultiSelect: false }];
+        seg[qField] = [...quizzes, {
+            question: '',
+            questionImage: '',
+            options: ['', '', '', ''],
+            optionImages: ['', '', '', ''],
+            correctOptionIndex: 0,
+            correctOptionIndices: [0],
+            isMultiSelect: false,
+        }];
         newSegments[sIndex] = seg;
         setProject({ ...project, segments: newSegments });
     };
@@ -557,6 +569,18 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
         const newOptions = [...newQuizzes[qIndex].options];
         newOptions[optionIndex] = value;
         newQuizzes[qIndex] = { ...newQuizzes[qIndex], options: newOptions };
+        seg[qField] = newQuizzes;
+        newSegments[sIndex] = seg;
+        setProject({ ...project, segments: newSegments });
+    };
+
+    const handleUpdateQuizOptionImage = (sIndex: number, qIndex: number, optionIndex: number, value: string) => {
+        const newSegments = [...(project.segments || [])];
+        const seg = newSegments[sIndex] as any;
+        const newQuizzes = [...(Array.isArray(seg[qField]) ? seg[qField] : [])];
+        const newOptionImages = [...(newQuizzes[qIndex].optionImages || [])];
+        newOptionImages[optionIndex] = value;
+        newQuizzes[qIndex] = { ...newQuizzes[qIndex], optionImages: newOptionImages };
         seg[qField] = newQuizzes;
         newSegments[sIndex] = seg;
         setProject({ ...project, segments: newSegments });
@@ -838,11 +862,19 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                                                                 className="bg-orange-50/10"
                                                             />
                                                         </div>
+                                                        <div className="mt-3">
+                                                            <ImageUpload
+                                                                label="Fragebild (optional)"
+                                                                value={quiz.questionImage || ''}
+                                                                onChange={(url) => handleUpdateQuiz(sIndex, qIndex, 'questionImage', url)}
+                                                            />
+                                                        </div>
                                                     </div>
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
                                                         {quiz.options.map((opt: string, oIndex: number) => (
-                                                            <div key={oIndex} className="flex items-center gap-2">
-                                                                {quiz.isMultiSelect ? (
+                                                            <div key={oIndex} className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
+                                                                <div className="flex items-center gap-2">
+                                                                    {quiz.isMultiSelect ? (
                                                                     <input
                                                                         type="checkbox"
                                                                         checked={(quiz.correctOptionIndices || [quiz.correctOptionIndex || 0]).includes(oIndex)}
@@ -860,7 +892,7 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                                                                         }}
                                                                         className="w-4 h-4 text-orange-500 rounded border-stone-300 focus:ring-orange-500"
                                                                     />
-                                                                ) : (
+                                                                    ) : (
                                                                     <input
                                                                         type="radio"
                                                                         name={`seg-${sIndex}-quiz-${qIndex}-correct`}
@@ -871,15 +903,23 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                                                                         }}
                                                                         className="w-4 h-4 text-orange-500 focus:ring-orange-500"
                                                                     />
-                                                                )}
-                                                                <input
-                                                                    type="text"
-                                                                    value={opt}
-                                                                    onChange={(e) => handleUpdateQuizOption(sIndex, qIndex, oIndex, e.target.value)}
-                                                                    placeholder={`Option ${oIndex + 1}`}
-                                                                    className="flex-1 px-3 py-2 rounded-lg border border-stone-200 focus:border-orange-400 focus:outline-none"
-                                                                    required
-                                                                />
+                                                                    )}
+                                                                    <input
+                                                                        type="text"
+                                                                        value={opt}
+                                                                        onChange={(e) => handleUpdateQuizOption(sIndex, qIndex, oIndex, e.target.value)}
+                                                                        placeholder={`Antwort ${oIndex + 1} (Text optional bei Bild)`}
+                                                                        className="flex-1 px-3 py-2 rounded-lg border border-stone-200 focus:border-orange-400 focus:outline-none bg-white"
+                                                                        required={!quiz.optionImages?.[oIndex]}
+                                                                    />
+                                                                </div>
+                                                                <div className="mt-3 pl-6">
+                                                                    <ImageUpload
+                                                                        label={`Antwortbild ${oIndex + 1} (optional)`}
+                                                                        value={quiz.optionImages?.[oIndex] || ''}
+                                                                        onChange={(url) => handleUpdateQuizOptionImage(sIndex, qIndex, oIndex, url)}
+                                                                    />
+                                                                </div>
                                                             </div>
                                                         ))}
                                                     </div>
