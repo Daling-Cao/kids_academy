@@ -13,46 +13,95 @@ import TopLoadingBar from './components/TopLoadingBar';
 import { trackRequest } from './lib/progress';
 import type { User } from './types';
 
+const SESSION_EXPIRY_KEY = 'session_expires_at';
+const AUTH_EXPIRED_EVENT = 'kids-academy-auth-expired';
+
+function clearLegacyAndSessionStorage() {
+  localStorage.removeItem('user');
+  localStorage.removeItem('token');
+  localStorage.removeItem(SESSION_EXPIRY_KEY);
+}
+
 // ─── Authenticated fetch wrapper ──────────────────────────────────
 // Every call also drives the global top loading bar via trackRequest.
 export function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const token = localStorage.getItem('token');
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string> || {}),
   };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
   // Only set Content-Type for non-FormData bodies
   if (!(options.body instanceof FormData)) {
     headers['Content-Type'] = headers['Content-Type'] || 'application/json';
   }
-  return trackRequest(fetch(url, { ...options, headers }));
+  return trackRequest(fetch(url, { ...options, headers, credentials: 'same-origin' })).then(response => {
+    if (response.status === 401) {
+      clearLegacyAndSessionStorage();
+      window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+    }
+    return response;
+  });
 }
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [sessionExpiresAt, setSessionExpiresAt] = useState<number | null>(null);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    const storedToken = localStorage.getItem('token');
-    if (storedUser && storedToken) {
-      setUser(JSON.parse(storedUser));
-    }
+    // Remove credentials from the previous localStorage-based login system.
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+
+    authFetch('/api/profile')
+      .then(async response => {
+        if (!response.ok) return;
+        const data = await response.json();
+        if (data.success && data.user) {
+          setUser(data.user);
+          setSessionExpiresAt(data.expiresAt);
+          localStorage.setItem(SESSION_EXPIRY_KEY, String(data.expiresAt));
+        }
+      })
+      .finally(() => setAuthChecking(false));
   }, []);
 
-  const handleLogin = useCallback((userData: User, token: string) => {
+  const handleLogin = useCallback((userData: User, expiresAt: number) => {
     setUser(userData);
-    localStorage.setItem('user', JSON.stringify(userData));
-    localStorage.setItem('token', token);
+    setSessionExpiresAt(expiresAt);
+    localStorage.setItem(SESSION_EXPIRY_KEY, String(expiresAt));
   }, []);
 
   const handleLogout = useCallback(() => {
+    void fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
     setUser(null);
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
+    setSessionExpiresAt(null);
+    clearLegacyAndSessionStorage();
   }, []);
+
+  useEffect(() => {
+    const handleExpired = () => {
+      setUser(null);
+      setSessionExpiresAt(null);
+      setShowProfile(false);
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpired);
+  }, []);
+
+  useEffect(() => {
+    if (!sessionExpiresAt) return;
+    const remaining = sessionExpiresAt - Date.now();
+    if (remaining <= 0) {
+      handleLogout();
+      return;
+    }
+    const timer = window.setTimeout(handleLogout, remaining);
+    return () => window.clearTimeout(timer);
+  }, [handleLogout, sessionExpiresAt]);
+
+  if (authChecking) {
+    return <div className="min-h-screen bg-orange-50" />;
+  }
 
   return (
     <Router>
@@ -95,7 +144,7 @@ export default function App() {
             user={user}
             onClose={() => setShowProfile(false)}
             onUpdate={(u) => {
-              handleLogin(u, localStorage.getItem('token') || '');
+              setUser(u);
               setShowProfile(false);
             }}
           />

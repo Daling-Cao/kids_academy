@@ -4,7 +4,7 @@ import { useI18n } from '../i18n';
 import { trackRequest } from '../lib/progress';
 
 interface LoginProps {
-  onLogin: (user: User, token: string) => void;
+  onLogin: (user: User, expiresAt: number) => void;
 }
 
 export default function Login({ onLogin }: LoginProps) {
@@ -27,7 +27,7 @@ export default function Login({ onLogin }: LoginProps) {
       }));
       const data = await res.json();
       if (data.success) {
-        onLogin(data.user, data.token);
+        onLogin(data.user, data.expiresAt);
       } else {
         setError(data.message || t.loginFailed);
       }

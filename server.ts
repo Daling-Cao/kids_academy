@@ -17,6 +17,16 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 
+const AUTH_COOKIE_NAME = 'kids_academy_session';
+const SESSION_DURATION_SECONDS = 3 * 60 * 60;
+const SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: 'lax' as const,
+  secure: process.env.NODE_ENV === 'production',
+  maxAge: SESSION_DURATION_SECONDS * 1000,
+  path: '/',
+};
+
 // ─── Multer config for image uploads ────────────────────────────────
 const uploadsDir = path.resolve(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -67,19 +77,33 @@ const upload = multer({
 
 // ─── Auth middleware ────────────────────────────────────────────────
 interface AuthRequest extends Request {
-  user?: { id: number; username: string; role: string };
+  user?: { id: number; username: string; role: string; exp?: number };
+}
+
+function getCookie(req: Request, name: string): string | undefined {
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return undefined;
+
+  for (const part of cookieHeader.split(';')) {
+    const separator = part.indexOf('=');
+    if (separator === -1) continue;
+    const key = part.slice(0, separator).trim();
+    if (key === name) return decodeURIComponent(part.slice(separator + 1).trim());
+  }
+  return undefined;
 }
 
 function authMiddleware(req: AuthRequest, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+  const token = getCookie(req, AUTH_COOKIE_NAME) || bearerToken;
+  if (!token) {
     res.status(401).json({ success: false, message: 'No token provided' });
     return;
   }
 
-  const token = authHeader.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: number; username: string; role: string };
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: number; username: string; role: string; exp?: number };
     req.user = decoded;
     next();
   } catch {
@@ -189,14 +213,27 @@ async function startServer() {
     const token = jwt.sign(
       { id: user.id, username: user.username, role: user.role },
       JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: SESSION_DURATION_SECONDS }
     );
+
+    const expiresAt = Date.now() + SESSION_DURATION_SECONDS * 1000;
+    res.cookie(AUTH_COOKIE_NAME, token, SESSION_COOKIE_OPTIONS);
 
     res.json({
       success: true,
       user: { id: user.id, username: user.username, role: user.role, name: user.name, avatar: user.avatar, coins: user.coins || 0 },
-      token,
+      expiresAt,
     });
+  });
+
+  app.post('/api/logout', (_req: Request, res: Response) => {
+    res.clearCookie(AUTH_COOKIE_NAME, {
+      httpOnly: SESSION_COOKIE_OPTIONS.httpOnly,
+      sameSite: SESSION_COOKIE_OPTIONS.sameSite,
+      secure: SESSION_COOKIE_OPTIONS.secure,
+      path: SESSION_COOKIE_OPTIONS.path,
+    });
+    res.json({ success: true });
   });
 
   // ─── File Upload (authenticated) ─────────────────────────────────
@@ -240,7 +277,7 @@ async function startServer() {
     try {
       const user = db.prepare('SELECT id, username, role, name, avatar FROM users WHERE id = ?').get(userId) as any;
       if (user) {
-        res.json({ success: true, user });
+        res.json({ success: true, user, expiresAt: (req.user?.exp || 0) * 1000 });
       } else {
         res.status(404).json({ success: false, message: 'User not found' });
       }

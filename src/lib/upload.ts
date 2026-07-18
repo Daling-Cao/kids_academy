@@ -16,13 +16,12 @@ export function uploadFile(
 ): Promise<UploadResult> {
     startRequest();
     return new Promise<UploadResult>((resolve) => {
-        const token = localStorage.getItem('token');
         const formData = new FormData();
         formData.append('image', file);
 
         const xhr = new XMLHttpRequest();
         xhr.open('POST', '/api/upload');
-        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.withCredentials = true;
 
         xhr.upload.onprogress = (e) => {
             if (e.lengthComputable && onProgress) {
@@ -31,6 +30,10 @@ export function uploadFile(
         };
         xhr.onload = () => {
             onProgress?.(100);
+            if (xhr.status === 401) {
+                localStorage.removeItem('session_expires_at');
+                window.dispatchEvent(new Event('kids-academy-auth-expired'));
+            }
             try {
                 resolve(JSON.parse(xhr.responseText) as UploadResult);
             } catch {

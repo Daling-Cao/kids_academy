@@ -9,7 +9,7 @@ export interface User {
 }
 
 export interface AuthUser extends User {
-    token: string;
+    expiresAt: number;
 }
 
 export interface Quiz {
