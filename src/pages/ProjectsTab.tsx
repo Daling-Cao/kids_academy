@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Lock, Unlock, GripVertical, FlaskConical } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { Plus, Edit2, Trash2, Lock, Unlock, GripVertical, FlaskConical, X, CheckCircle2, Save } from 'lucide-react';
 import ProjectEditor from '../components/ProjectEditor';
 import { authFetch } from '../App';
 import type { Project, Building, ProjectSegment } from '../types';
@@ -22,12 +23,87 @@ interface EditingProject extends ProjectData {
     id: number;
 }
 
+function ProjectEditorModal({ title, formId, onClose, children }: {
+    title: string;
+    formId: string;
+    onClose: () => void;
+    children: React.ReactNode;
+}) {
+    useEffect(() => {
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape' && !document.querySelector('[role="alertdialog"]')) onClose();
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [onClose]);
+
+    return createPortal(
+        <div
+            className="fixed inset-0 z-[9000] overflow-y-auto bg-black/60 p-3 backdrop-blur-sm sm:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-label={title}
+        >
+            <div className="mx-auto my-3 w-full max-w-6xl sm:my-6">
+                <div className="sticky top-3 z-20 mb-3 flex items-center justify-between rounded-2xl bg-stone-800/95 px-4 py-3 text-white shadow-xl backdrop-blur sm:top-6">
+                    <h2 className="truncate text-lg font-bold">{title}</h2>
+                    <div className="ml-4 flex shrink-0 items-center gap-2">
+                        <button
+                            type="submit"
+                            form={formId}
+                            className="flex items-center gap-1.5 rounded-xl bg-orange-500 px-3 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-orange-600"
+                        >
+                            <Save size={18} /> Speichern
+                        </button>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-sm font-bold text-stone-700 transition-colors hover:bg-stone-100"
+                        >
+                            <X size={18} /> Schließen
+                        </button>
+                    </div>
+                </div>
+                {children}
+            </div>
+        </div>,
+        document.body,
+    );
+}
+
+function SaveConfirmationDialog({ onConfirm }: { onConfirm: () => void }) {
+    return createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-4" role="alertdialog" aria-modal="true" aria-labelledby="project-save-title">
+            <div className="w-full max-w-md rounded-3xl border-4 border-green-100 bg-white p-7 text-center shadow-2xl">
+                <CheckCircle2 size={52} className="mx-auto mb-4 text-green-500" />
+                <h2 id="project-save-title" className="mb-2 text-2xl font-bold text-stone-800">Projekt gespeichert</h2>
+                <p className="mb-6 text-stone-600">Das Projekt wurde erfolgreich gespeichert.</p>
+                <button
+                    type="button"
+                    autoFocus
+                    onClick={onConfirm}
+                    className="w-full rounded-xl bg-green-500 px-5 py-3 font-bold text-white shadow-md transition-colors hover:bg-green-600"
+                >
+                    OK
+                </button>
+            </div>
+        </div>,
+        document.body,
+    );
+}
+
 export default function ProjectsTab() {
     const { t } = useI18n();
     const [projects, setProjects] = useState<Project[]>([]);
     const [buildings, setBuildings] = useState<Building[]>([]);
     const [showAddForm, setShowAddForm] = useState(false);
     const [editingProject, setEditingProject] = useState<EditingProject | null>(null);
+    const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
     const [newProject, setNewProject] = useState<ProjectData>({
         buildingId: 1,
         title: '',
@@ -40,6 +116,14 @@ export default function ProjectsTab() {
         tags: [],
         segments: []
     });
+    const closeAddForm = useCallback(() => {
+        setShowSaveConfirmation(false);
+        setShowAddForm(false);
+    }, []);
+    const closeEditForm = useCallback(() => {
+        setShowSaveConfirmation(false);
+        setEditingProject(null);
+    }, []);
 
     // Drag & drop state
     const dragSrcId = useRef<number | null>(null);
@@ -72,23 +156,30 @@ export default function ProjectsTab() {
 
     const handleAddProject = async (e: React.FormEvent) => {
         e.preventDefault();
-        await authFetch('/api/projects', {
+        const response = await authFetch('/api/projects', {
             method: 'POST',
             body: JSON.stringify(newProject)
         });
+        if (!response.ok) throw new Error(`Failed to save project (${response.status})`);
+        const data = await response.json();
+        if (!data.id) throw new Error('Saved project ID is missing');
+
+        setEditingProject({ ...newProject, id: Number(data.id) });
         setShowAddForm(false);
         setNewProject({ buildingId: buildings[0]?.id || 1, title: '', description: '', scratchFileUrl: '', scratchProjectId: '', finalScratchFileUrl: '', finalScratchProjectId: '', coverImage: '', tags: [], segments: [] });
+        setShowSaveConfirmation(true);
         fetchProjects();
     };
 
     const handleUpdateProject = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingProject) return;
-        await authFetch(`/api/projects/${editingProject.id}`, {
+        const response = await authFetch(`/api/projects/${editingProject.id}`, {
             method: 'PUT',
             body: JSON.stringify(editingProject)
         });
-        setEditingProject(null);
+        if (!response.ok) throw new Error(`Failed to update project (${response.status})`);
+        setShowSaveConfirmation(true);
         fetchProjects();
     };
 
@@ -317,7 +408,10 @@ export default function ProjectsTab() {
                     <FlaskConical size={20} /> {t.generateTestData}
                 </button>
                 <button
-                    onClick={() => setShowAddForm(!showAddForm)}
+                    onClick={() => {
+                        setEditingProject(null);
+                        setShowAddForm(true);
+                    }}
                     className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-xl font-bold shadow-md hover:bg-orange-600 transition-colors"
                 >
                     <Plus size={20} /> {t.addProject}
@@ -325,25 +419,35 @@ export default function ProjectsTab() {
             </div>
 
             {showAddForm && (
-                <ProjectEditor
-                    buildings={buildings}
-                    title={t.addProject}
-                    project={newProject}
-                    setProject={setNewProject}
-                    onSubmit={handleAddProject}
-                    onCancel={() => setShowAddForm(false)}
-                />
+                <ProjectEditorModal title={t.addProject} formId="project-editor-form" onClose={closeAddForm}>
+                    <ProjectEditor
+                        buildings={buildings}
+                        formId="project-editor-form"
+                        title={t.addProject}
+                        project={newProject}
+                        setProject={setNewProject}
+                        onSubmit={handleAddProject}
+                        onCancel={closeAddForm}
+                    />
+                </ProjectEditorModal>
             )}
 
             {editingProject && (
-                <ProjectEditor
-                    buildings={buildings}
-                    title={t.editProject}
-                    project={editingProject}
-                    setProject={(p) => setEditingProject({ ...p, id: editingProject.id })}
-                    onSubmit={handleUpdateProject}
-                    onCancel={() => setEditingProject(null)}
-                />
+                <ProjectEditorModal title={t.editProject} formId="project-editor-form" onClose={closeEditForm}>
+                    <ProjectEditor
+                        buildings={buildings}
+                        formId="project-editor-form"
+                        title={t.editProject}
+                        project={editingProject}
+                        setProject={(p) => setEditingProject({ ...p, id: editingProject.id })}
+                        onSubmit={handleUpdateProject}
+                        onCancel={closeEditForm}
+                    />
+                </ProjectEditorModal>
+            )}
+
+            {showSaveConfirmation && (
+                <SaveConfirmationDialog onConfirm={() => setShowSaveConfirmation(false)} />
             )}
 
             <div className="bg-white rounded-2xl shadow-lg border-2 border-orange-100 overflow-hidden">

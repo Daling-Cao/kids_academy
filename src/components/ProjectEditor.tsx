@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { marked } from 'marked';
-import { Plus, Trash2, Eye } from 'lucide-react';
+import { ChevronDown, Eye, Plus, Trash2 } from 'lucide-react';
 import ReactQuill, { Quill } from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import BlotFormatter from 'quill-blot-formatter';
@@ -484,11 +484,48 @@ interface ProjectEditorProps {
     onCancel: () => void;
     title: string;
     buildings: Building[];
+    formId: string;
 }
 
-export default function ProjectEditor({ project, setProject, onSubmit, onCancel, title, buildings }: ProjectEditorProps) {
+function CollapsibleSection({ id, title, description, isOpen, onToggle, children }: {
+    id: string;
+    title: string;
+    description: string;
+    isOpen: boolean;
+    onToggle: () => void;
+    children: React.ReactNode;
+}) {
+    return (
+        <section className="overflow-hidden rounded-2xl border-2 border-orange-100 bg-white shadow-sm">
+            <button
+                type="button"
+                onClick={onToggle}
+                aria-expanded={isOpen}
+                aria-controls={id}
+                className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-orange-50"
+            >
+                <span>
+                    <span className="block text-lg font-bold text-stone-800">{title}</span>
+                    {isOpen ? <span className="mt-0.5 block text-sm text-stone-500">{description}</span> : null}
+                </span>
+                <ChevronDown
+                    size={22}
+                    className={`shrink-0 text-orange-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                />
+            </button>
+            {isOpen ? <div id={id} className="border-t border-orange-100 p-5">{children}</div> : null}
+        </section>
+    );
+}
+
+export default function ProjectEditor({ project, setProject, onSubmit, onCancel, title, buildings, formId }: ProjectEditorProps) {
     const [tagInput, setTagInput] = useState('');
     const [showPreview, setShowPreview] = useState(false);
+    const [openSections, setOpenSections] = useState({ details: true, content: false, questions: false });
+
+    const toggleSection = (section: keyof typeof openSections) => {
+        setOpenSections(current => ({ ...current, [section]: !current[section] }));
+    };
 
     // Single-language app (German). Content is stored in the base columns.
     const tField = 'title';
@@ -598,6 +635,31 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
 
     const getProjectField = (field: string) => (project as any)[field] || '';
 
+    const handleEditorSubmit = (event: React.FormEvent) => {
+        const detailsInvalid = !project.title.trim() || !project.description.trim();
+        const questionsInvalid = (project.segments || []).some((segment: any) => {
+            const quizzes = Array.isArray(segment[qField]) ? segment[qField] : [];
+            return quizzes.some((quiz: Quiz) => quiz.options.some((option, index) => (
+                !option.trim() && !quiz.optionImages?.[index]
+            )));
+        });
+
+        if (detailsInvalid || questionsInvalid) {
+            event.preventDefault();
+            setOpenSections(current => ({
+                ...current,
+                details: detailsInvalid ? true : current.details,
+                questions: questionsInvalid ? true : current.questions,
+            }));
+            window.setTimeout(() => {
+                (document.getElementById(formId) as HTMLFormElement | null)?.reportValidity();
+            }, 0);
+            return;
+        }
+
+        onSubmit(event);
+    };
+
     return (
         <div className="bg-white p-6 rounded-2xl shadow-lg border-2 border-orange-100 mb-8">
             <div className="flex items-center justify-between mb-4">
@@ -616,7 +678,15 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                 <ProjectPreview project={project} onClose={() => setShowPreview(false)} />
             )}
 
-            <form onSubmit={onSubmit} className="space-y-4">
+            <form id={formId} onSubmit={handleEditorSubmit} className="space-y-4">
+                <CollapsibleSection
+                    id="project-details-section"
+                    title="Allgemeine Informationen"
+                    description="Gebäude, Titel, Beschreibung, Bilder, Tags und Scratch-Projekt"
+                    isOpen={openSections.details}
+                    onToggle={() => toggleSection('details')}
+                >
+                <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-stone-600 mb-1">Building</label>
@@ -731,7 +801,17 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                     </div>
                 </div>
 
-                <div className="mt-8 border-t-2 border-orange-100 pt-6">
+                </div>
+                </CollapsibleSection>
+
+                <CollapsibleSection
+                    id="project-content-section"
+                    title="Artikelinhalt"
+                    description="Abschnitte und Lerninhalt des Projekts"
+                    isOpen={openSections.content}
+                    onToggle={() => toggleSection('content')}
+                >
+                <div>
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="text-xl font-bold text-orange-700">Project Segments</h3>
                         <button
@@ -745,7 +825,6 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
 
                     <div className="space-y-12">
                         {(project.segments || []).map((seg: any, sIndex: number) => {
-                            const segQuizzes = Array.isArray(seg[qField]) ? seg[qField] : [];
                             return (
                                 <div key={sIndex} className="bg-stone-50 p-6 rounded-2xl border-2 border-stone-200 relative shadow-sm">
                                     <button
@@ -804,10 +883,36 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                                             />
                                         </div>
                                     </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+                </CollapsibleSection>
 
-                                    <div className="border-t border-stone-200 pt-6">
+                <CollapsibleSection
+                    id="project-questions-section"
+                    title="Fragen"
+                    description="Quizfragen und Antworten für alle Abschnitte"
+                    isOpen={openSections.questions}
+                    onToggle={() => toggleSection('questions')}
+                >
+                    {(project.segments || []).length === 0 ? (
+                        <p className="rounded-xl bg-stone-50 p-4 text-sm text-stone-500">
+                            Erstelle zuerst im Modul „Artikelinhalt“ einen Abschnitt.
+                        </p>
+                    ) : (
+                    <div className="space-y-6">
+                        {(project.segments || []).map((seg: any, sIndex: number) => {
+                            const segQuizzes = Array.isArray(seg[qField]) ? seg[qField] : [];
+                            return (
+                                <div key={sIndex} className="rounded-2xl border-2 border-stone-200 bg-stone-50 p-5 shadow-sm">
+                                    <div className="border-stone-200">
                                         <div className="flex justify-between items-center mb-4">
-                                            <h4 className="text-lg font-bold text-stone-700">Segment Quizzes (Max 5)</h4>
+                                            <div>
+                                                <p className="text-xs font-bold uppercase tracking-wide text-orange-500">Abschnitt {sIndex + 1}</p>
+                                                <h4 className="text-lg font-bold text-stone-700">{seg[tField] || `Segment ${sIndex + 1}`}</h4>
+                                            </div>
                                             {segQuizzes.length < 5 && (
                                                 <button
                                                     type="button"
@@ -945,7 +1050,8 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                             );
                         })}
                     </div>
-                </div>
+                    )}
+                </CollapsibleSection>
 
                 <div className="flex justify-end gap-2 mt-6">
                     <button
