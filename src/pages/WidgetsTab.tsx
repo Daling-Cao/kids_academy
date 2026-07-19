@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trash2, Upload, ExternalLink, Image } from 'lucide-react';
+import { Trash2, Upload, Image } from 'lucide-react';
 import { authFetch } from '../App';
 import WidgetModal from '../components/WidgetModal';
 import ImageUpload from '../components/ImageUpload';
@@ -221,15 +221,6 @@ export default function WidgetsTab() {
                   >
                     👁 {t.openWidget}
                   </button>
-                  <a
-                    href={`/widget-files/${w.id}/${w.entryFile}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-lg transition-colors"
-                    title="Im neuen Tab öffnen"
-                  >
-                    <ExternalLink size={16} />
-                  </a>
                 </div>
 
                 {/* Embed link for copying into lessons */}

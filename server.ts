@@ -34,14 +34,20 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 // ─── Widget files storage ─────────────────────────────────────────────
-const widgetsDir = path.resolve(process.cwd(), 'uploads', 'widgets');
-if (!fs.existsSync(widgetsDir)) {
-  fs.mkdirSync(widgetsDir, { recursive: true });
+// Keep active HTML/JS outside the public image upload tree. Otherwise the
+// same widget could bypass /widget-files CSP via /uploads/widgets/... (or a
+// reverse proxy serving /uploads directly).
+const legacyWidgetsDir = path.resolve(uploadsDir, 'widgets');
+const widgetsDir = path.resolve(process.cwd(), 'widget-uploads');
+fs.mkdirSync(widgetsDir, { recursive: true });
+if (fs.existsSync(legacyWidgetsDir)) {
+  fs.cpSync(legacyWidgetsDir, widgetsDir, { recursive: true, force: false, errorOnExist: false });
+  fs.rmSync(legacyWidgetsDir, { recursive: true, force: true });
 }
 
 const widgetUpload = multer({
   storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    destination: (_req, _file, cb) => cb(null, widgetsDir),
     filename: (_req, file, cb) => {
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
       const ext = path.extname(file.originalname);
@@ -88,17 +94,21 @@ function getCookie(req: Request, name: string): string | undefined {
     const separator = part.indexOf('=');
     if (separator === -1) continue;
     const key = part.slice(0, separator).trim();
-    if (key === name) return decodeURIComponent(part.slice(separator + 1).trim());
+    if (key === name) {
+      try {
+        return decodeURIComponent(part.slice(separator + 1).trim());
+      } catch {
+        return undefined;
+      }
+    }
   }
   return undefined;
 }
 
 function authMiddleware(req: AuthRequest, res: Response, next: NextFunction): void {
-  const authHeader = req.headers.authorization;
-  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
-  const token = getCookie(req, AUTH_COOKIE_NAME) || bearerToken;
+  const token = getCookie(req, AUTH_COOKIE_NAME);
   if (!token) {
-    res.status(401).json({ success: false, message: 'No token provided' });
+    res.status(401).json({ success: false, message: 'No session cookie provided' });
     return;
   }
 
@@ -182,15 +192,31 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+  // Never let legacy widget paths fall through to the public upload tree or
+  // the SPA fallback. Existing files are migrated out at startup above.
+  app.use('/uploads/widgets', (_req: Request, res: Response) => {
+    res.status(404).send('Not found');
+  });
+
   // Serve uploaded files. nosniff prevents the browser from MIME-sniffing an
   // uploaded file (e.g. HTML disguised as .jpg) into an executable document.
   app.use('/uploads', express.static(uploadsDir, {
     setHeaders: (res) => res.setHeader('X-Content-Type-Options', 'nosniff'),
   }));
 
-  // Widget files served without sandboxing so scripts run inside the iframe.
-  // Teacher-uploaded content only — no anonymous access to upload.
-  app.use('/widget-files', express.static(widgetsDir));
+  // Uploaded widgets are untrusted active content. The CSP sandbox applies even
+  // when someone navigates directly to a widget URL, so it cannot regain the
+  // application's origin or use the HttpOnly session cookie against /api/*.
+  app.use('/widget-files', express.static(widgetsDir, {
+    setHeaders(res) {
+      res.setHeader(
+        'Content-Security-Policy',
+        "sandbox allow-scripts allow-forms allow-downloads allow-modals; object-src 'none'; base-uri 'none'",
+      );
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Referrer-Policy', 'no-referrer');
+    },
+  }));
 
   // ─── Public Routes ──────────────────────────────────────────────
 
@@ -218,6 +244,11 @@ async function startServer() {
 
     const expiresAt = Date.now() + SESSION_DURATION_SECONDS * 1000;
     res.cookie(AUTH_COOKIE_NAME, token, SESSION_COOKIE_OPTIONS);
+    // Older deployments exposed unsandboxed widgets below /uploads/widgets
+    // with a 30-day immutable cache. Clear that legacy cache whenever a user
+    // establishes a new session so cached active content cannot survive the
+    // security migration. Browsers only honor this header on HTTPS origins.
+    res.setHeader('Clear-Site-Data', '"cache"');
 
     res.json({
       success: true,

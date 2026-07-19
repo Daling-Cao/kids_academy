@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { X, ExternalLink } from 'lucide-react';
+import { X } from 'lucide-react';
 
 interface WidgetModalProps {
   widgetId: number;
@@ -31,15 +31,6 @@ export default function WidgetModal({ widgetId, widgetName, entryFile = 'index.h
         <div className="bg-orange-400 px-5 py-3 flex items-center justify-between shrink-0">
           <span className="text-white font-bold text-lg truncate">🔧 {widgetName}</span>
           <div className="flex items-center gap-2">
-            <a
-              href={src}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-white/80 hover:text-white transition-colors"
-              title="Im neuen Tab öffnen"
-            >
-              <ExternalLink size={18} />
-            </a>
             <button
               onClick={onClose}
               className="text-white/80 hover:text-white transition-colors ml-1"

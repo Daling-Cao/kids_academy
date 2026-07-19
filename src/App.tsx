@@ -46,6 +46,8 @@ export default function App() {
   const [showProfile, setShowProfile] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
   const [sessionExpiresAt, setSessionExpiresAt] = useState<number | null>(null);
+  const [logoutPending, setLogoutPending] = useState(false);
+  const [logoutError, setLogoutError] = useState('');
 
   useEffect(() => {
     // Remove credentials from the previous localStorage-based login system.
@@ -71,33 +73,53 @@ export default function App() {
     localStorage.setItem(SESSION_EXPIRY_KEY, String(expiresAt));
   }, []);
 
-  const handleLogout = useCallback(() => {
-    void fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+  const clearLocalSession = useCallback(() => {
     setUser(null);
     setSessionExpiresAt(null);
+    setShowProfile(false);
+    setLogoutError('');
     clearLegacyAndSessionStorage();
   }, []);
 
+  const handleLogout = useCallback(async () => {
+    setLogoutPending(true);
+    setLogoutError('');
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 10_000);
+    try {
+      const response = await fetch('/api/logout', {
+        method: 'POST',
+        credentials: 'same-origin',
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`Logout failed with status ${response.status}`);
+      clearLocalSession();
+    } catch {
+      setLogoutError('Abmelden fehlgeschlagen. Bitte Verbindung prüfen und erneut versuchen.');
+    } finally {
+      window.clearTimeout(timeout);
+      setLogoutPending(false);
+    }
+  }, [clearLocalSession]);
+
   useEffect(() => {
     const handleExpired = () => {
-      setUser(null);
-      setSessionExpiresAt(null);
-      setShowProfile(false);
+      clearLocalSession();
     };
     window.addEventListener(AUTH_EXPIRED_EVENT, handleExpired);
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpired);
-  }, []);
+  }, [clearLocalSession]);
 
   useEffect(() => {
     if (!sessionExpiresAt) return;
     const remaining = sessionExpiresAt - Date.now();
     if (remaining <= 0) {
-      handleLogout();
+      clearLocalSession();
       return;
     }
-    const timer = window.setTimeout(handleLogout, remaining);
+    const timer = window.setTimeout(clearLocalSession, remaining);
     return () => window.clearTimeout(timer);
-  }, [handleLogout, sessionExpiresAt]);
+  }, [clearLocalSession, sessionExpiresAt]);
 
   if (authChecking) {
     return <div className="min-h-screen bg-orange-50" />;
@@ -131,12 +153,19 @@ export default function App() {
               </button>
               <button
                 onClick={handleLogout}
-                className="px-4 py-2 bg-white text-orange-600 rounded-full shadow-sm hover:bg-orange-50 transition-colors font-medium text-sm sm:text-base"
+                disabled={logoutPending}
+                className="px-4 py-2 bg-white text-orange-600 rounded-full shadow-sm hover:bg-orange-50 transition-colors font-medium text-sm sm:text-base disabled:cursor-wait disabled:opacity-60"
               >
-                Logout
+                {logoutPending ? 'Abmelden…' : 'Logout'}
               </button>
             </div>
           </nav>
+        )}
+
+        {logoutError && (
+          <div role="alert" className="bg-red-100 px-4 py-2 text-center text-sm font-medium text-red-700">
+            {logoutError}
+          </div>
         )}
 
         {showProfile && user && (

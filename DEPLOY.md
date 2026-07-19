@@ -134,7 +134,14 @@ server {
     # 上传文件大小限制
     client_max_body_size 50M;
 
-    # 静态文件上传目录（直接由 Nginx 提供，性能更好）
+    # 旧版曾将 Widget 暴露在 /uploads/widgets。必须在通用 uploads
+    # 规则之前永久阻止该路径，避免绕过 Widget sandbox。
+    location ^~ /uploads/widgets/ {
+        add_header Cache-Control "no-store" always;
+        return 404;
+    }
+
+    # 静态图片上传目录（直接由 Nginx 提供，性能更好）
     location /uploads/ {
         alias /var/www/kids-academy/uploads/;
         expires 30d;
