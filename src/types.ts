@@ -6,6 +6,21 @@ export interface User {
     role: 'teacher' | 'student';
     name?: string;
     avatar?: string;
+    coins?: number;
+    lastLoginAt?: string | null;
+    lastPagePath?: string | null;
+    lastPageAt?: string | null;
+    lastPageLabel?: string | null;
+}
+
+export interface StudentNotification {
+    id: number;
+    type: string;
+    content: string;
+    refType?: string | null;
+    refId?: string | null;
+    isRead: number;
+    createdAt: string;
 }
 
 export interface AuthUser extends User {

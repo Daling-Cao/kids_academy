@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Save, X, Users, Lock, Unlock, CheckCircle, PlayCircle, Eye, EyeOff, Building2, BookOpen, KeyRound } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, Users, Lock, Unlock, CheckCircle, PlayCircle, Eye, EyeOff, Building2, BookOpen, KeyRound, Clock, MapPin } from 'lucide-react';
 import { authFetch } from '../App';
 import type { User, Building, StudentProgress, BuildingWithVisibility } from '../types';
 import { useI18n } from '../i18n';
@@ -218,6 +218,11 @@ export default function StudentsTab() {
                                         <div>
                                             <div className="font-bold text-stone-700">{student.name || student.username}</div>
                                             {student.name && <div className="text-xs text-stone-500">@{student.username}</div>}
+                                            <div className="text-xs text-stone-400">
+                                                {student.lastLoginAt
+                                                    ? `${t.lastLogin}: ${new Date(student.lastLoginAt + 'Z').toLocaleDateString()}`
+                                                    : t.neverLoggedIn}
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="flex gap-1">
@@ -259,7 +264,27 @@ export default function StudentsTab() {
                             <h2 className="text-2xl font-bold text-orange-800">
                                 {t.manageStudent} {selectedStudent.name || selectedStudent.username}
                             </h2>
-                            <p className="text-stone-600 mt-1"></p>
+                            <div className="text-sm text-stone-600 mt-2 flex flex-col sm:flex-row gap-1 sm:gap-6">
+                                <span className="flex items-center gap-1.5">
+                                    <Clock size={14} className="text-orange-500" />
+                                    {t.lastLogin}:{' '}
+                                    <span className="font-medium">
+                                        {selectedStudent.lastLoginAt
+                                            ? new Date(selectedStudent.lastLoginAt + 'Z').toLocaleString()
+                                            : t.neverLoggedIn}
+                                    </span>
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                    <MapPin size={14} className="text-orange-500" />
+                                    {t.lastVisitedPage}:{' '}
+                                    <span className="font-medium">
+                                        {selectedStudent.lastPageLabel || '—'}
+                                        {selectedStudent.lastPageAt
+                                            ? ` (${new Date(selectedStudent.lastPageAt + 'Z').toLocaleString()})`
+                                            : ''}
+                                    </span>
+                                </span>
+                            </div>
                         </div>
                         <div className="overflow-y-auto flex-grow p-6 space-y-8">
 

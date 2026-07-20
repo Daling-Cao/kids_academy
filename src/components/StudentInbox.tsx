@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { authFetch } from '../App';
-import { MessageCircle, X, Reply } from 'lucide-react';
-import type { User } from '../types';
+import { MessageCircle, X, Reply, BookOpen } from 'lucide-react';
+import type { User, StudentNotification } from '../types';
 import { sanitizeHtml } from '../utils/sanitize';
 
 interface MyMessage {
@@ -19,16 +19,23 @@ interface StudentInboxProps {
 export default function StudentInbox({ user }: StudentInboxProps) {
     const [open, setOpen] = useState(false);
     const [messages, setMessages] = useState<MyMessage[]>([]);
+    const [notifications, setNotifications] = useState<StudentNotification[]>([]);
     const [loading, setLoading] = useState(false);
     const [hasUnread, setHasUnread] = useState(false);
 
     const fetchMessages = () => {
         setLoading(true);
-        authFetch('/api/messages/mine')
-            .then(res => res.json())
-            .then(data => {
-                setMessages(data);
-                setHasUnread(data.some((m: MyMessage) => m.reply));
+        Promise.all([
+            authFetch('/api/messages/mine').then(res => res.json()),
+            authFetch('/api/notifications/mine').then(res => res.json()),
+        ])
+            .then(([msgs, notifs]) => {
+                setMessages(msgs);
+                setNotifications(Array.isArray(notifs) ? notifs : []);
+                setHasUnread(
+                    msgs.some((m: MyMessage) => m.reply) ||
+                    (Array.isArray(notifs) && notifs.some((n: StudentNotification) => !n.isRead))
+                );
             })
             .catch(() => {})
             .finally(() => setLoading(false));
@@ -41,11 +48,21 @@ export default function StudentInbox({ user }: StudentInboxProps) {
         return () => clearInterval(interval);
     }, [user.id]);
 
+    const handleOpen = () => {
+        setOpen(true);
+        setHasUnread(false);
+        if (notifications.some(n => !n.isRead)) {
+            authFetch('/api/notifications/read-all', { method: 'PUT' })
+                .then(() => setNotifications(prev => prev.map(n => ({ ...n, isRead: 1 }))))
+                .catch(() => {});
+        }
+    };
+
     return (
         <>
             {/* Inbox button */}
             <button
-                onClick={() => { setOpen(true); setHasUnread(false); }}
+                onClick={handleOpen}
                 className="fixed bottom-20 right-6 z-40 flex items-center gap-2 bg-white border-2 border-orange-300 text-orange-600 px-4 py-2.5 rounded-full shadow-lg hover:bg-orange-50 transition-all hover:scale-105 active:scale-95 font-bold text-sm"
             >
                 <MessageCircle size={18} />
@@ -69,9 +86,25 @@ export default function StudentInbox({ user }: StudentInboxProps) {
                         </div>
 
                         <div className="overflow-y-auto flex-1">
+                            {/* Course announcements */}
+                            {notifications.length > 0 && (
+                                <div className="mb-4 space-y-3">
+                                    {notifications.map(n => (
+                                        <div key={n.id} className="bg-green-50 rounded-2xl p-4 border-2 border-green-100">
+                                            <div className="text-xs text-green-600 font-semibold mb-1 flex items-center gap-1">
+                                                <BookOpen size={12} /> {new Date(n.createdAt + 'Z').toLocaleString()}
+                                            </div>
+                                            <div className="text-stone-700 text-sm font-medium break-words">
+                                                {n.content}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
                             {loading ? (
                                 <div className="text-center py-8 text-stone-400">Loading...</div>
-                            ) : messages.length === 0 ? (
+                            ) : messages.length === 0 && notifications.length === 0 ? (
                                 <div className="text-center py-10 text-stone-400">
                                     <div className="text-4xl mb-3">💬</div>
                                     <p className="font-medium">No messages sent yet</p>

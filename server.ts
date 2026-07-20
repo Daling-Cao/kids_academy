@@ -185,6 +185,50 @@ function syncProjectCompletion(userId: number | string, projectId: number | stri
   }
 }
 
+// Turn a stored SPA path into a human-readable label for the teacher UI,
+// resolving building/project ids to their current names.
+function describePagePath(pagePath: string | null): string | null {
+  if (!pagePath) return null;
+  if (pagePath === '/' || pagePath === '/dashboard') return 'Campus';
+  const building = pagePath.match(/^\/building\/(\d+)/);
+  if (building) {
+    const b = db.prepare('SELECT name FROM buildings WHERE id = ?').get(building[1]) as any;
+    return b ? `Gebäude: ${b.name}` : 'Gebäude';
+  }
+  const classroom = pagePath.match(/^\/classroom\/(\d+)/);
+  if (classroom) {
+    const p = db.prepare('SELECT title FROM projects WHERE id = ?').get(classroom[1]) as any;
+    return p ? `Klassenzimmer: ${p.title}` : 'Klassenzimmer';
+  }
+  if (pagePath.startsWith('/widgets') || pagePath.startsWith('/widget-open')) return 'Werkzeugbibliothek';
+  return pagePath;
+}
+
+// Notify every student once when a project is released (unlocked). The
+// refType/refId pair deduplicates, so re-locking and unlocking a project
+// does not spam students with repeat announcements.
+function notifyStudentsProjectRelease(projectId: number | string): void {
+  const already = db.prepare(
+    "SELECT id FROM notifications WHERE refType = 'project_release' AND refId = ? LIMIT 1"
+  ).get(String(projectId));
+  if (already) return;
+
+  const project = db.prepare(
+    'SELECT p.title, b.name as buildingName FROM projects p LEFT JOIN buildings b ON p.buildingId = b.id WHERE p.id = ?'
+  ).get(projectId) as any;
+  if (!project) return;
+
+  const content = `📚 Neue Lektion verfügbar: „${project.title}“${project.buildingName ? ` (${project.buildingName})` : ''}`;
+  const students = db.prepare("SELECT id FROM users WHERE role = 'student'").all() as any[];
+  const insert = db.prepare(
+    "INSERT INTO notifications (userId, type, content, refType, refId) VALUES (?, 'new_project', ?, 'project_release', ?)"
+  );
+  const insertAll = db.transaction(() => {
+    for (const s of students) insert.run(s.id, content, String(projectId));
+  });
+  insertAll();
+}
+
 async function startServer() {
   const app = express();
   const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -235,6 +279,8 @@ async function startServer() {
       res.status(401).json({ success: false, message: 'Invalid credentials' });
       return;
     }
+
+    db.prepare("UPDATE users SET lastLoginAt = datetime('now') WHERE id = ?").run(user.id);
 
     const token = jwt.sign(
       { id: user.id, username: user.username, role: user.role },
@@ -343,6 +389,40 @@ async function startServer() {
     } catch (error: any) {
       res.status(400).json({ success: false, message: error.message });
     }
+  });
+
+  // ─── Page Tracking (authenticated) ───────────────────────────────
+  // The SPA reports every route change so teachers can see where a
+  // student last was ("最后停留的网页").
+  app.post('/api/track/page', authMiddleware, (req: AuthRequest, res: Response) => {
+    const userId = req.user?.id;
+    const pagePath = req.body?.path;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Not authenticated' });
+      return;
+    }
+    if (typeof pagePath !== 'string' || !pagePath.startsWith('/') || pagePath.length > 300) {
+      res.status(400).json({ success: false, message: 'Invalid path' });
+      return;
+    }
+    db.prepare("UPDATE users SET lastPagePath = ?, lastPageAt = datetime('now') WHERE id = ?").run(pagePath, userId);
+    res.json({ success: true });
+  });
+
+  // ─── Notification Routes ─────────────────────────────────────────
+
+  // Student: get own notifications (course announcements etc.)
+  app.get('/api/notifications/mine', authMiddleware, (req: AuthRequest, res: Response) => {
+    const rows = db.prepare(
+      'SELECT id, type, content, refType, refId, isRead, createdAt FROM notifications WHERE userId = ? ORDER BY createdAt DESC LIMIT 50'
+    ).all(req.user?.id);
+    res.json(rows);
+  });
+
+  // Student: mark all own notifications as read
+  app.put('/api/notifications/read-all', authMiddleware, (req: AuthRequest, res: Response) => {
+    db.prepare('UPDATE notifications SET isRead = 1 WHERE userId = ?').run(req.user?.id);
+    res.json({ success: true });
   });
 
   // ─── Messaging Routes ─────────────────────────────────────────────
@@ -582,7 +662,10 @@ async function startServer() {
 
   // Get all students
   app.get('/api/users', authMiddleware, teacherOnly, (_req: AuthRequest, res: Response) => {
-    const users = db.prepare('SELECT id, username, role, name, avatar, coins FROM users WHERE role = ?').all('student');
+    const users = db.prepare(
+      'SELECT id, username, role, name, avatar, coins, lastLoginAt, lastPagePath, lastPageAt FROM users WHERE role = ?'
+    ).all('student') as any[];
+    users.forEach(u => { u.lastPageLabel = describePagePath(u.lastPagePath); });
     res.json(users);
   });
 
@@ -766,6 +849,8 @@ async function startServer() {
     const { id } = req.params;
     const { isLocked } = req.body;
     db.prepare('UPDATE projects SET isLocked = ? WHERE id = ?').run(isLocked ? 1 : 0, id);
+    // Unlocking is the moment a course goes live for students — announce it.
+    if (!isLocked) notifyStudentsProjectRelease(id);
     res.json({ success: true });
   });
 

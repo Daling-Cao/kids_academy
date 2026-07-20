@@ -139,6 +139,18 @@ db.exec(`
     value TEXT NOT NULL DEFAULT ''
   );
 
+  CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId INTEGER NOT NULL,
+    type TEXT NOT NULL DEFAULT 'announcement',
+    content TEXT NOT NULL,
+    refType TEXT,
+    refId TEXT,
+    isRead INTEGER NOT NULL DEFAULT 0,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS custom_emojis (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -173,6 +185,16 @@ if (messagesInfo.length > 0) {
 const hasCoinsColumn = tableInfo.some(col => col.name === 'coins');
 if (!hasCoinsColumn) {
   db.exec('ALTER TABLE users ADD COLUMN coins INTEGER NOT NULL DEFAULT 0;');
+}
+
+// Migrate users table: add last-login / last-page tracking columns
+const hasLastLoginAt = tableInfo.some(col => col.name === 'lastLoginAt');
+if (!hasLastLoginAt) {
+  db.exec(`
+    ALTER TABLE users ADD COLUMN lastLoginAt TEXT;
+    ALTER TABLE users ADD COLUMN lastPagePath TEXT;
+    ALTER TABLE users ADD COLUMN lastPageAt TEXT;
+  `);
 }
 
 // Migrate projects table: add tags and multi-lang columns

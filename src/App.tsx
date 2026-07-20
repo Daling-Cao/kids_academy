@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import ProfileSettingsModal from './components/ProfileSettingsModal';
 import Login from './pages/Login';
@@ -39,6 +39,20 @@ export function authFetch(url: string, options: RequestInit = {}): Promise<Respo
     }
     return response;
   });
+}
+
+// Reports every route change of a logged-in student to the server so the
+// teacher dashboard can show where each child last was.
+function RouteTracker({ user }: { user: User | null }) {
+  const location = useLocation();
+  useEffect(() => {
+    if (!user || user.role !== 'student') return;
+    authFetch('/api/track/page', {
+      method: 'POST',
+      body: JSON.stringify({ path: location.pathname }),
+    }).catch(() => {});
+  }, [user, location.pathname]);
+  return null;
 }
 
 export default function App() {
@@ -128,6 +142,7 @@ export default function App() {
   return (
     <Router>
       <TopLoadingBar />
+      <RouteTracker user={user} />
       <div className="min-h-screen bg-orange-50 font-sans text-stone-800">
         {user && (
           <nav className="bg-orange-200 p-4 flex justify-between items-center shadow-sm">
