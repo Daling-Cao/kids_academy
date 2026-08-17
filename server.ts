@@ -877,9 +877,9 @@ async function startServer() {
 
   // Hand in a homework file — the system tests it, then opens the article.
   //
-  // Passing the tests awards one BlockCoin (once per project). Failing them
-  // still opens the article, so the student can do the lesson and earn the
-  // normal completion coin: pass + lesson = 2, fail + lesson = 1.
+  // Passing the tests awards one BlockCoin (once per project), on top of
+  // whatever the finished lesson pays. Failing them still opens the article,
+  // so the lesson can be completed for that normal reward either way.
   app.post('/api/student/projects/:projectId/homework', authMiddleware, (req: AuthRequest, res: Response) => {
     homeworkUpload.single('file')(req, res, (err) => {
       if (err) {
