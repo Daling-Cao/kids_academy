@@ -55,6 +55,74 @@ export interface ProjectSegment {
     orderIndex: number;
 }
 
+// ─── Homework (Hausaufgaben) ──────────────────────────────────────────
+// A project is either a normal lesson or a homework lesson. For homework the
+// student must first upload their own Scratch/code file; the system tests it
+// and only then opens the article.
+
+export type ProjectType = 'lesson' | 'homework';
+
+export type HomeworkCheckType =
+    | 'minSprites'
+    | 'minBlocks'
+    | 'minScripts'
+    | 'minCostumes'
+    | 'minSounds'
+    | 'requiredOpcode'
+    | 'requiredVariable'
+    | 'requiredList'
+    | 'requiredExtension'
+    | 'containsText'
+    | 'notContainsText'
+    | 'minLines';
+
+export interface HomeworkCheck {
+    type: HomeworkCheckType;
+    // Numeric checks use `value` as the minimum; text checks as the needle.
+    value: string | number;
+    // How often an opcode has to appear (requiredOpcode only). Defaults to 1.
+    count?: number;
+    // Kid-friendly description shown in the result list. Falls back to an
+    // auto-generated German label when empty.
+    label?: string;
+}
+
+export interface HomeworkCheckResult {
+    type: HomeworkCheckType | 'file';
+    label: string;
+    passed: boolean;
+    detail: string;
+}
+
+export interface HomeworkSubmission {
+    id: number;
+    userId: number;
+    projectId: number;
+    fileName: string;
+    fileSize: number;
+    passed: boolean | number;
+    score: number;
+    total: number;
+    results: HomeworkCheckResult[];
+    createdAt: string;
+    // Joined columns, only present in the teacher views.
+    studentName?: string;
+    studentUsername?: string;
+    projectTitle?: string;
+}
+
+export interface HomeworkStatus {
+    projectType: ProjectType;
+    // True once the student has handed in at least one file — this is what
+    // opens the article, regardless of whether the tests passed.
+    submitted: boolean;
+    // True once any submission passed all tests (the extra BlockCoin).
+    passed: boolean;
+    coinAwarded: boolean;
+    attempts: number;
+    latest: HomeworkSubmission | null;
+}
+
 export interface Project {
     id: number;
     buildingId: number;
@@ -74,6 +142,16 @@ export interface Project {
     segments?: ProjectSegment[];
     buildingName?: string;
     tags?: string[];
+    projectType?: ProjectType;
+    homeworkInstructions?: string;
+    homeworkChecks?: HomeworkCheck[];
+    // Set by the server for students: the article is still hidden because no
+    // homework has been handed in yet.
+    homeworkLocked?: boolean;
+    homeworkStatus?: HomeworkStatus | null;
+    // Only on the student's building listing, for the door badge.
+    homeworkSubmitted?: boolean;
+    homeworkPassed?: boolean;
     // Legacy fields for backward compatibility
     content?: string;
     quizzes?: Quiz[] | string;

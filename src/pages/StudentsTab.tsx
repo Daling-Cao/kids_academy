@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Save, X, Users, Lock, Unlock, CheckCircle, PlayCircle, Eye, EyeOff, Building2, BookOpen, KeyRound, Clock, MapPin } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, Users, Lock, Unlock, CheckCircle, PlayCircle, Eye, EyeOff, Building2, BookOpen, KeyRound, Clock, MapPin, FileUp, Download, XCircle } from 'lucide-react';
 import { authFetch } from '../App';
-import type { User, Building, StudentProgress, BuildingWithVisibility } from '../types';
+import type { User, Building, StudentProgress, BuildingWithVisibility, HomeworkSubmission } from '../types';
 import { useI18n } from '../i18n';
 
 export default function StudentsTab() {
@@ -12,6 +12,7 @@ export default function StudentsTab() {
     const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
     const [progressData, setProgressData] = useState<StudentProgress[]>([]);
     const [buildingsData, setBuildingsData] = useState<BuildingWithVisibility[]>([]);
+    const [homeworkData, setHomeworkData] = useState<HomeworkSubmission[]>([]);
     const [newStudent, setNewStudent] = useState({ username: '', password: '' });
 
     useEffect(() => {
@@ -37,6 +38,13 @@ export default function StudentsTab() {
             .then(res => res.json())
             .then(data => setBuildingsData(data))
             .catch(err => console.error('Failed to fetch buildings:', err));
+    };
+
+    const fetchStudentHomework = (studentId: number) => {
+        authFetch(`/api/homework/submissions?userId=${studentId}`)
+            .then(res => res.json())
+            .then(data => setHomeworkData(Array.isArray(data) ? data : []))
+            .catch(err => console.error('Failed to fetch homework submissions:', err));
     };
 
     const handleAddStudent = async (e: React.FormEvent) => {
@@ -181,6 +189,7 @@ export default function StudentsTab() {
                                 setSelectedStudent(student);
                                 fetchStudentProgress(student.id);
                                 fetchStudentBuildings(student.id);
+                                fetchStudentHomework(student.id);
                             }}
                         >
                             {editingStudent?.id === student.id ? (
@@ -353,6 +362,49 @@ export default function StudentsTab() {
                                         <div className="col-span-full text-stone-400 italic">No buildings available to manage.</div>
                                     )}
                                 </div>
+                            </div>
+
+                            {/* Homework Submissions Section */}
+                            <div>
+                                <h3 className="text-xl font-bold text-orange-700 mb-4 flex items-center gap-2">
+                                    <FileUp size={24} /> {t.homeworkSubmissions}
+                                </h3>
+                                {homeworkData.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {homeworkData.map(sub => (
+                                            <div key={sub.id} className={`flex flex-wrap items-center justify-between gap-4 rounded-xl border-2 p-4 ${sub.passed ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
+                                                <div className="min-w-0">
+                                                    <div className="flex items-center gap-2 font-bold text-stone-800">
+                                                        {sub.passed
+                                                            ? <CheckCircle size={18} className="text-green-600" />
+                                                            : <XCircle size={18} className="text-amber-600" />}
+                                                        {sub.projectTitle}
+                                                    </div>
+                                                    <div className="text-sm text-stone-600">
+                                                        {sub.fileName} · {sub.score}/{sub.total} · {new Date(sub.createdAt + 'Z').toLocaleString('de-DE')}
+                                                    </div>
+                                                    <ul className="mt-2 space-y-0.5 text-sm">
+                                                        {sub.results.map((r, i) => (
+                                                            <li key={i} className={r.passed ? 'text-green-800' : 'text-red-700'}>
+                                                                {r.passed ? '✅' : '❌'} {r.label}{r.detail ? ` — ${r.detail}` : ''}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                                <a
+                                                    href={`/api/homework/submissions/${sub.id}/file`}
+                                                    className="flex shrink-0 items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-bold text-blue-700 shadow-sm transition-colors hover:bg-blue-50"
+                                                >
+                                                    <Download size={18} /> {t.homeworkDownload}
+                                                </a>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="rounded-xl border-2 border-dashed border-stone-200 py-8 text-center text-stone-400">
+                                        {t.homeworkNoSubmissions}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Project Progress Section */}

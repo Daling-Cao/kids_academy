@@ -49,6 +49,9 @@ db.exec(`
     orderIndex INTEGER NOT NULL,
     quizzes TEXT DEFAULT '[]',
     tags TEXT DEFAULT '[]',
+    projectType TEXT NOT NULL DEFAULT 'lesson',
+    homeworkInstructions TEXT DEFAULT '',
+    homeworkChecks TEXT DEFAULT '[]',
     FOREIGN KEY (buildingId) REFERENCES buildings(id) ON DELETE CASCADE
   );
 
@@ -151,6 +154,27 @@ db.exec(`
     FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  -- One row per handed-in homework file. Students may hand in as often as
+  -- they like; every attempt is kept so the teacher can see the history.
+  CREATE TABLE IF NOT EXISTS homework_submissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId INTEGER NOT NULL,
+    projectId INTEGER NOT NULL,
+    fileName TEXT NOT NULL,
+    storedName TEXT NOT NULL,
+    fileSize INTEGER NOT NULL DEFAULT 0,
+    passed INTEGER NOT NULL DEFAULT 0,
+    score INTEGER NOT NULL DEFAULT 0,
+    total INTEGER NOT NULL DEFAULT 0,
+    results TEXT NOT NULL DEFAULT '[]',
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (projectId) REFERENCES projects(id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_homework_submissions_user_project
+    ON homework_submissions(userId, projectId);
+
   CREATE TABLE IF NOT EXISTS custom_emojis (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -223,6 +247,17 @@ if (projectsInfo.length > 0) {
     db.exec(`
       ALTER TABLE projects ADD COLUMN finalScratchFileUrl TEXT;
       ALTER TABLE projects ADD COLUMN finalScratchProjectId TEXT;
+    `);
+  }
+
+  // Homework projects: the article stays closed until the student hands in a
+  // file that the system can test.
+  const hasProjectType = projectsInfo.some(col => col.name === 'projectType');
+  if (!hasProjectType) {
+    db.exec(`
+      ALTER TABLE projects ADD COLUMN projectType TEXT NOT NULL DEFAULT 'lesson';
+      ALTER TABLE projects ADD COLUMN homeworkInstructions TEXT DEFAULT '';
+      ALTER TABLE projects ADD COLUMN homeworkChecks TEXT DEFAULT '[]';
     `);
   }
 }

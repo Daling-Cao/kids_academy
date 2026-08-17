@@ -6,7 +6,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { authFetch } from '../App';
 import SelectionPopup from '../components/SelectionPopup';
 import WidgetModal from '../components/WidgetModal';
-import type { User, Project, Quiz } from '../types';
+import HomeworkPanel from '../components/HomeworkPanel';
+import type { User, Project, Quiz, HomeworkStatus } from '../types';
 import { useI18n } from '../i18n';
 
 export default function Classroom({ user }: { user: User }) {
@@ -22,6 +23,7 @@ export default function Classroom({ user }: { user: User }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCoinAnimation, setShowCoinAnimation] = useState(false);
+  const [homeworkStatus, setHomeworkStatus] = useState<HomeworkStatus | null>(null);
   const [activeWidget, setActiveWidget] = useState<{ id: number; name: string; entryFile: string } | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -41,6 +43,7 @@ export default function Classroom({ user }: { user: User }) {
     ])
       .then(([projectData, progressData]) => {
         setProject(projectData);
+        setHomeworkStatus(projectData?.homeworkStatus || null);
         if (progressData?.state === 'completed') {
           setCompleted(true);
         }
@@ -88,6 +91,23 @@ export default function Classroom({ user }: { user: User }) {
     } catch (err: any) {
       console.error('Failed to complete segment', err);
     }
+  };
+
+  // A hand-in unlocks the article server-side, so the project has to be
+  // fetched again to actually receive the segment content.
+  const handleHomeworkSubmitted = async (status: HomeworkStatus) => {
+    setHomeworkStatus(status);
+    try {
+      const res = await authFetch(`/api/projects/${id}`);
+      if (res.ok) setProject(await res.json());
+    } catch (err) {
+      console.error('Failed to reload project after homework submission', err);
+    }
+  };
+
+  const showCoin = () => {
+    setShowCoinAnimation(true);
+    setTimeout(() => setShowCoinAnimation(false), 3000);
   };
 
   const handleAnswerChange = (segmentId: number, quizIndex: number, optionIndex: number, isMulti: boolean) => {
@@ -183,6 +203,9 @@ export default function Classroom({ user }: { user: User }) {
   const allSegmentsCompleted = publishedSegments.every(s => segmentProgress[s.id!] === 'completed');
 
   const pTitle = project.title;
+  const isHomework = project.projectType === 'homework';
+  // The server already withholds the article; this only mirrors that state.
+  const articleLocked = isHomework && !homeworkStatus?.submitted;
 
   return (
     <>
@@ -216,7 +239,14 @@ export default function Classroom({ user }: { user: User }) {
           >
             <ArrowLeft size={20} /> {t.backToHallway}
           </button>
-          <h1 className="text-3xl font-extrabold text-white drop-shadow-md">{pTitle}</h1>
+          <h1 className="flex items-center gap-3 text-3xl font-extrabold text-white drop-shadow-md">
+            {isHomework && (
+              <span className="rounded-full bg-white/25 px-3 py-1 text-sm font-bold uppercase tracking-wider">
+                {t.homeworkBadge}
+              </span>
+            )}
+            {pTitle}
+          </h1>
           <div className="w-24"></div>
         </div>
 
@@ -233,6 +263,17 @@ export default function Classroom({ user }: { user: User }) {
               alt={pTitle}
               className="w-full h-64 object-cover rounded-2xl mb-8 shadow-md border-2 border-orange-50"
               referrerPolicy="no-referrer"
+            />
+          )}
+
+          {isHomework && (
+            <HomeworkPanel
+              projectId={project.id}
+              userId={user.id}
+              instructions={project.homeworkInstructions}
+              status={homeworkStatus}
+              onSubmitted={handleHomeworkSubmitted}
+              onCoinEarned={showCoin}
             />
           )}
 
@@ -306,7 +347,14 @@ export default function Classroom({ user }: { user: User }) {
             )
           )}
 
-          <div ref={contentRef} className="space-y-16">
+          {articleLocked && (
+            <div className="flex flex-col items-center justify-center rounded-3xl border-4 border-dashed border-stone-200 bg-stone-50 p-12 text-center text-stone-500">
+              <Lock size={64} className="mb-6 opacity-20" />
+              <p className="text-lg font-medium">{t.homeworkArticleLocked}</p>
+            </div>
+          )}
+
+          <div ref={contentRef} className={`space-y-16 ${articleLocked ? 'hidden' : ''}`}>
             {publishedSegments.map((seg, sIndex) => {
               const segId = seg.id!;
               const isSegLocked = !!seg.isLocked;
@@ -518,7 +566,7 @@ export default function Classroom({ user }: { user: User }) {
             )}
           </div>
 
-            {publishedSegments.length > 1 && (
+            {publishedSegments.length > 1 && !articleLocked && (
               <div className="border-t-4 border-orange-100 mt-16 pt-12 flex flex-col items-center justify-center">
                 <h3 className="text-2xl font-bold text-stone-700 mb-6 flex items-center gap-2">
                   <CheckSquare className="text-orange-500" /> {t.overallProgress}

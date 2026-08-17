@@ -14,6 +14,7 @@ fix*.cjs
 fix*.js
 uploads/
 widget-uploads/
+homework-uploads/
 metadata.json
 test_malicious.js
 test_output.txt
