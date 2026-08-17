@@ -220,6 +220,52 @@ function syncProjectCompletion(userId: number | string, projectId: number | stri
 
 // ─── Homework helpers ────────────────────────────────────────────────
 
+// Students may hand in as often as they like, but the files must not pile up
+// forever. Only the newest attempt and the newest passing attempt keep their
+// file on disk; older attempts stay in the database (the teacher still sees
+// their per-check result) with the file marked as gone.
+// Smallest gap between two hand-ins of the same project by the same student.
+const HOMEWORK_COOLDOWN_MS = 5000;
+
+function removeHomeworkFile(storedName: string | null | undefined): void {
+  if (!storedName) return;
+  const filePath = path.resolve(homeworkDir, storedName);
+  // Never follow a tampered row out of the homework directory.
+  if (!filePath.startsWith(homeworkDir + path.sep)) return;
+  try { fs.unlinkSync(filePath); } catch {}
+}
+
+function pruneHomeworkFiles(userId: number | string, projectId: number | string): void {
+  const rows = db.prepare(`
+    SELECT id, storedName, passed FROM homework_submissions
+    WHERE userId = ? AND projectId = ? AND storedName != ''
+    ORDER BY createdAt DESC, id DESC
+  `).all(userId, projectId) as any[];
+
+  // At most two ids: the newest hand-in, plus the newest passing one so a
+  // student who broke a working project still has the good version on file.
+  const keep = new Set<number>();
+  if (rows.length > 0) keep.add(rows[0].id);
+  const newestPassing = rows.find(r => r.passed);
+  if (newestPassing) keep.add(newestPassing.id);
+
+  const clearFile = db.prepare("UPDATE homework_submissions SET storedName = '' WHERE id = ?");
+  for (const row of rows) {
+    if (keep.has(row.id)) continue;
+    removeHomeworkFile(row.storedName);
+    clearFile.run(row.id);
+  }
+}
+
+// Deleting a project or a student cascades the database rows, which would
+// otherwise orphan their files on disk forever.
+function deleteHomeworkFilesFor(where: 'projectId' | 'userId', id: number | string): void {
+  const rows = db.prepare(
+    `SELECT storedName FROM homework_submissions WHERE ${where} = ? AND storedName != ''`
+  ).all(id) as any[];
+  for (const row of rows) removeHomeworkFile(row.storedName);
+}
+
 // The article of a homework project stays closed until the student has handed
 // in a file. Whether the tests passed only decides the extra BlockCoin.
 function hasHandedInHomework(userId: number | string, projectId: number | string): boolean {
@@ -253,6 +299,8 @@ function parseSubmissionRow(row: any) {
     projectId: row.projectId,
     fileName: row.fileName,
     fileSize: row.fileSize,
+    // Older attempts keep their result but not their file (see pruneHomeworkFiles).
+    fileAvailable: !!row.storedName,
     passed: !!row.passed,
     score: row.score,
     total: row.total,
@@ -880,6 +928,23 @@ async function startServer() {
       }
 
       const userId = req.user!.id;
+
+      // Cheap brake against a script hammering the endpoint: real children do
+      // not hand in twice within five seconds.
+      const lastAttempt = db.prepare(`
+        SELECT createdAt FROM homework_submissions
+        WHERE userId = ? AND projectId = ? ORDER BY createdAt DESC, id DESC LIMIT 1
+      `).get(userId, project.id) as any;
+      if (lastAttempt) {
+        // SQLite stores UTC without a zone marker.
+        const age = Date.now() - new Date(lastAttempt.createdAt + 'Z').getTime();
+        if (age >= 0 && age < HOMEWORK_COOLDOWN_MS) {
+          cleanUp();
+          res.status(429).json({ success: false, message: 'Einen Moment bitte — probiere es in ein paar Sekunden noch einmal.' });
+          return;
+        }
+      }
+
       const info = db.prepare(`
         INSERT INTO homework_submissions (userId, projectId, fileName, storedName, fileSize, passed, score, total, results)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -887,6 +952,9 @@ async function startServer() {
         userId, project.id, originalName, path.basename(req.file.filename), req.file.size,
         run.passed ? 1 : 0, run.score, run.total, JSON.stringify(run.results),
       );
+
+      // Keep the history, drop the old files.
+      pruneHomeworkFiles(userId, project.id);
 
       // One coin per project for a passing hand-in, no matter how many tries.
       let coinAwarded = false;
@@ -957,6 +1025,12 @@ async function startServer() {
       return;
     }
 
+    // Superseded attempts keep their result but lose their file.
+    if (!row.storedName) {
+      res.status(410).json({ error: 'Diese Datei wurde durch eine neuere Abgabe ersetzt.' });
+      return;
+    }
+
     // storedName comes from multer, but resolve-and-verify anyway so a
     // tampered row can never escape the homework directory.
     const filePath = path.resolve(homeworkDir, row.storedName);
@@ -1018,6 +1092,8 @@ async function startServer() {
   // Delete student
   app.delete('/api/users/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
     const { id } = req.params;
+    // The submission rows cascade, but their files on disk would not.
+    deleteHomeworkFilesFor('userId', id);
     db.prepare('DELETE FROM users WHERE id = ? AND role = ?').run(id, 'student');
     res.json({ success: true });
   });
@@ -1285,7 +1361,9 @@ async function startServer() {
   // Delete project
   app.delete('/api/projects/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
     const { id } = req.params;
-    // user_progress automatically deleted by FK ON DELETE CASCADE
+    // user_progress and homework_submissions are removed by FK ON DELETE
+    // CASCADE; the handed-in files have to go explicitly.
+    deleteHomeworkFilesFor('projectId', id);
     db.prepare('DELETE FROM projects WHERE id = ?').run(id);
     res.json({ success: true });
   });

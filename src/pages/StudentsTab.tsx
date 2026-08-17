@@ -391,12 +391,18 @@ export default function StudentsTab() {
                                                         ))}
                                                     </ul>
                                                 </div>
-                                                <a
-                                                    href={`/api/homework/submissions/${sub.id}/file`}
-                                                    className="flex shrink-0 items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-bold text-blue-700 shadow-sm transition-colors hover:bg-blue-50"
-                                                >
-                                                    <Download size={18} /> {t.homeworkDownload}
-                                                </a>
+                                                {sub.fileAvailable ? (
+                                                    <a
+                                                        href={`/api/homework/submissions/${sub.id}/file`}
+                                                        className="flex shrink-0 items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-bold text-blue-700 shadow-sm transition-colors hover:bg-blue-50"
+                                                    >
+                                                        <Download size={18} /> {t.homeworkDownload}
+                                                    </a>
+                                                ) : (
+                                                    <span className="shrink-0 rounded-xl border border-stone-200 bg-stone-50 px-4 py-2 text-sm font-medium text-stone-400">
+                                                        {t.homeworkFileReplaced}
+                                                    </span>
+                                                )}
                                             </div>
                                         ))}
                                     </div>

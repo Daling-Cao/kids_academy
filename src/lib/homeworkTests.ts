@@ -17,6 +17,17 @@ export const HOMEWORK_ALLOWED_EXTENSIONS = [
 
 export const HOMEWORK_MAX_FILE_BYTES = 25 * 1024 * 1024;
 
+// The upload limit only bounds the *compressed* archive. project.json is
+// inflated into memory, so a small archive with a huge declared entry (or a
+// wildly improbable compression ratio) would let one hand-in exhaust the
+// single Node process. Real Scratch projects stay far below these numbers —
+// the JSON holds no media, only block structure.
+const MAX_PROJECT_JSON_BYTES = 32 * 1024 * 1024;
+const MAX_COMPRESSION_RATIO = 200;
+
+// Text files are read whole as well, so they get the same treatment.
+const MAX_TEXT_BYTES = 5 * 1024 * 1024;
+
 interface ScratchStats {
     spriteCount: number;
     blockCount: number;
@@ -105,7 +116,30 @@ export function analyzeHomeworkFile(filePath: string, fileName: string): Homewor
             if (!entry) {
                 return { kind: 'scratch', text: '', error: 'Die Datei enthält kein Scratch-Projekt (project.json fehlt).' };
             }
-            const raw = entry.getData().toString('utf8');
+
+            // Refuse the entry before inflating it: check the size the archive
+            // declares and how hard it claims to compress.
+            const declaredSize = entry.header.size;
+            const compressedSize = entry.header.compressedSize;
+            const ratio = compressedSize > 0 ? declaredSize / compressedSize : 0;
+            if (declaredSize > MAX_PROJECT_JSON_BYTES || ratio > MAX_COMPRESSION_RATIO) {
+                return {
+                    kind: 'scratch',
+                    text: '',
+                    error: 'Die Scratch-Datei ist zu groß oder beschädigt und kann nicht geprüft werden.',
+                };
+            }
+
+            const data = entry.getData();
+            // The header is only a claim; the inflated buffer is the truth.
+            if (data.length > MAX_PROJECT_JSON_BYTES) {
+                return {
+                    kind: 'scratch',
+                    text: '',
+                    error: 'Die Scratch-Datei ist zu groß oder beschädigt und kann nicht geprüft werden.',
+                };
+            }
+            const raw = data.toString('utf8');
             const projectJson = JSON.parse(raw);
             if (!Array.isArray(projectJson?.targets)) {
                 return {
@@ -121,6 +155,9 @@ export function analyzeHomeworkFile(filePath: string, fileName: string): Homewor
     }
 
     try {
+        if (fs.statSync(filePath).size > MAX_TEXT_BYTES) {
+            return { kind: 'text', text: '', error: 'Die Datei ist zu groß, um geprüft zu werden.' };
+        }
         const text = fs.readFileSync(filePath, 'utf8');
         return { kind: 'text', text };
     } catch {

@@ -100,6 +100,8 @@ export interface HomeworkSubmission {
     projectId: number;
     fileName: string;
     fileSize: number;
+    // Superseded attempts keep their result but their file is pruned.
+    fileAvailable: boolean;
     passed: boolean | number;
     score: number;
     total: number;

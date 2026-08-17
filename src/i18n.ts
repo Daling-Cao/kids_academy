@@ -74,7 +74,7 @@ const translations = {
     homeworkResultTitle: 'Das hat der Test geprüft',
     homeworkPassed: 'Test bestanden!',
     homeworkNotPassed: 'Noch nicht ganz!',
-    homeworkPassedHint: 'Super gemacht — du hast dafür 1 BlockCoin bekommen. Der Artikel ist jetzt offen. Wenn du die Lektion fertig machst, gibt es noch einen.',
+    homeworkPassedHint: 'Super gemacht — dafür gibt es 1 BlockCoin extra. Der Artikel ist jetzt offen: Mach die Lektion fertig, dann bekommst du auch die normale Belohnung dafür.',
     homeworkNotPassedHint: 'Kein Problem: Der Artikel ist trotzdem offen. Lies ihn durch, verbessere dein Projekt und gib es einfach noch einmal ab.',
     homeworkScore: (score: number, total: number) => `${score} von ${total} Prüfungen bestanden`,
     homeworkAttempts: (n: number) => (n === 1 ? '1 Abgabe' : `${n} Abgaben`),
@@ -85,6 +85,7 @@ const translations = {
     homeworkSubmissions: 'Abgegebene Hausaufgaben',
     homeworkNoSubmissions: 'Noch keine Hausaufgaben abgegeben.',
     homeworkDownload: 'Datei herunterladen',
+    homeworkFileReplaced: 'Durch neuere Abgabe ersetzt',
     homeworkStatusPassed: 'Bestanden',
     homeworkStatusFailed: 'Nicht bestanden',
     

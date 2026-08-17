@@ -697,8 +697,8 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                     <label className="block text-sm font-medium text-stone-600 mb-2">Projekttyp</label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {([
-                            { value: 'lesson' as const, icon: '📖', name: 'Normale Lektion', desc: 'Artikel lesen, Quiz lösen — 1 BlockCoin.' },
-                            { value: 'homework' as const, icon: '📝', name: 'Hausaufgabe', desc: 'Erst Datei abgeben und testen lassen, dann öffnet sich der Artikel — bis zu 2 BlockCoins.' },
+                            { value: 'lesson' as const, icon: '📖', name: 'Normale Lektion', desc: 'Artikel lesen, Quiz lösen — die übliche Belohnung.' },
+                            { value: 'homework' as const, icon: '📝', name: 'Hausaufgabe', desc: 'Erst Datei abgeben und testen lassen, dann öffnet sich der Artikel — 1 BlockCoin extra, wenn der Test besteht.' },
                         ]).map(option => (
                             <button
                                 key={option.value}
@@ -845,8 +845,8 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                             <div className="rounded-xl border-2 border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
                                 <p className="font-bold mb-1">Punkte-Regel</p>
                                 <ul className="list-disc space-y-0.5 pl-5">
-                                    <li>Abgegeben <strong>und Test bestanden</strong> + Lektion fertig: <strong>2 BlockCoins</strong></li>
-                                    <li>Abgegeben, Test <strong>nicht</strong> bestanden + Lektion fertig: <strong>1 BlockCoin</strong></li>
+                                    <li>Abgegeben <strong>und Test bestanden</strong>: <strong>1 BlockCoin extra</strong> — zusätzlich zu der Belohnung, die es für die fertige Lektion sowieso gibt.</li>
+                                    <li>Abgegeben, Test <strong>nicht</strong> bestanden: kein Extra-Coin, aber der Artikel geht trotzdem auf — die fertige Lektion bringt die normale Belohnung.</li>
                                     <li>Ohne Abgabe bleibt der Artikel zu.</li>
                                 </ul>
                             </div>
