@@ -64,7 +64,7 @@ const translations = {
     // Homework (Hausaufgabe)
     homeworkTitle: 'Hausaufgabe',
     homeworkBadge: '📝 Hausaufgabe',
-    homeworkLockedHint: 'Lade zuerst dein eigenes Projekt hoch. Danach öffnet sich der Artikel — auch wenn der Test noch nicht klappt.',
+    homeworkLockedHint: 'Lade zuerst dein eigenes Projekt hoch. Danach öffnet sich der Artikel und du bekommst 1 BlockCoin — ganz gleich, ob der Test schon klappt.',
     homeworkArticleLocked: 'Der Artikel ist noch zu. Gib oben deine Hausaufgabe ab, dann geht er auf!',
     homeworkSubmit: 'Hausaufgabe abgeben',
     homeworkUploading: 'Wird geprüft…',
@@ -74,12 +74,12 @@ const translations = {
     homeworkResultTitle: 'Das hat der Test geprüft',
     homeworkPassed: 'Test bestanden!',
     homeworkNotPassed: 'Noch nicht ganz!',
-    homeworkPassedHint: 'Super gemacht — dafür gibt es 1 BlockCoin extra. Der Artikel ist jetzt offen: Mach die Lektion fertig, dann bekommst du auch die normale Belohnung dafür.',
-    homeworkNotPassedHint: 'Kein Problem: Der Artikel ist trotzdem offen. Lies ihn durch, verbessere dein Projekt und gib es einfach noch einmal ab.',
+    homeworkPassedHint: 'Super gemacht — dein Projekt erfüllt schon alle Prüfungen! Den BlockCoin für die Abgabe hast du bereits bekommen. Mach jetzt die Lektion fertig, dann gibt es auch die normale Belohnung dafür.',
+    homeworkNotPassedHint: 'Kein Problem: Der BlockCoin für die Abgabe gehört schon dir, und der Artikel ist offen. Lies ihn durch, verbessere dein Projekt und gib es einfach noch einmal ab, wenn du magst.',
     homeworkScore: (score: number, total: number) => `${score} von ${total} Prüfungen bestanden`,
     homeworkAttempts: (n: number) => (n === 1 ? '1 Abgabe' : `${n} Abgaben`),
     homeworkLastFile: 'Zuletzt abgegeben',
-    homeworkEarnedCoin: '+1 BlockCoin für die Hausaufgabe!',
+    homeworkEarnedCoin: '+1 BlockCoin für die Abgabe!',
 
     // Teacher — Homework overview
     homeworkSubmissions: 'Abgegebene Hausaufgaben',

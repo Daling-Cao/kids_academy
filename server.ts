@@ -320,8 +320,8 @@ function buildHomeworkStatus(userId: number | string, project: any) {
   ).all(userId, project.id) as any[];
 
   const coinAwarded = !!db.prepare(
-    'SELECT id FROM coin_transactions WHERE userId = ? AND refType = ? AND refId = ?'
-  ).get(userId, 'homework_pass', String(project.id));
+    "SELECT id FROM coin_transactions WHERE userId = ? AND refId = ? AND refType IN ('homework_submit', 'homework_pass')"
+  ).get(userId, String(project.id));
 
   return {
     projectType: project.projectType || 'lesson',
@@ -956,18 +956,19 @@ async function startServer() {
       // Keep the history, drop the old files.
       pruneHomeworkFiles(userId, project.id);
 
-      // One coin per project for a passing hand-in, no matter how many tries.
+      // One coin per project for handing something in — the automatic test
+      // result does not gate the coin, only the article (which is already
+      // open by the time we get here). Checking both refTypes covers rows
+      // from before this was changed from pass-gated to submit-gated.
       let coinAwarded = false;
-      if (run.passed) {
-        const alreadyAwarded = db.prepare(
-          'SELECT id FROM coin_transactions WHERE userId = ? AND refType = ? AND refId = ?'
-        ).get(userId, 'homework_pass', String(project.id));
-        if (!alreadyAwarded) {
-          db.prepare('INSERT INTO coin_transactions (userId, amount, reason, refType, refId) VALUES (?, ?, ?, ?, ?)')
-            .run(userId, 1, 'Hausaufgabe bestanden', 'homework_pass', String(project.id));
-          db.prepare('UPDATE users SET coins = coins + 1 WHERE id = ?').run(userId);
-          coinAwarded = true;
-        }
+      const alreadyAwarded = db.prepare(
+        "SELECT id FROM coin_transactions WHERE userId = ? AND refId = ? AND refType IN ('homework_submit', 'homework_pass')"
+      ).get(userId, String(project.id));
+      if (!alreadyAwarded) {
+        db.prepare('INSERT INTO coin_transactions (userId, amount, reason, refType, refId) VALUES (?, ?, ?, ?, ?)')
+          .run(userId, 1, 'Hausaufgabe abgegeben', 'homework_submit', String(project.id));
+        db.prepare('UPDATE users SET coins = coins + 1 WHERE id = ?').run(userId);
+        coinAwarded = true;
       }
 
       // Handing in starts the lesson, so the door stops looking untouched.
