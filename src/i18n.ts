@@ -60,6 +60,34 @@ const translations = {
     classroomNotFound: 'Klassenzimmer nicht gefunden.',
     noSegments: 'Noch keine Abschnitte verfügbar.',
     generateTestData: 'Testdaten generieren',
+
+    // Homework (Hausaufgabe)
+    homeworkTitle: 'Hausaufgabe',
+    homeworkBadge: '📝 Hausaufgabe',
+    homeworkLockedHint: 'Lade zuerst dein eigenes Projekt hoch. Danach öffnet sich der Artikel — auch wenn der Test noch nicht klappt.',
+    homeworkArticleLocked: 'Der Artikel ist noch zu. Gib oben deine Hausaufgabe ab, dann geht er auf!',
+    homeworkSubmit: 'Hausaufgabe abgeben',
+    homeworkUploading: 'Wird geprüft…',
+    homeworkResubmit: 'Neue Version abgeben',
+    homeworkUploadFailed: 'Das Hochladen hat leider nicht geklappt. Versuch es noch einmal.',
+    homeworkAllowedTypes: 'Erlaubt: Scratch-Dateien (.sb3) oder Code-Dateien (.py, .ino, .js, .cpp …), maximal 25 MB.',
+    homeworkResultTitle: 'Das hat der Test geprüft',
+    homeworkPassed: 'Test bestanden!',
+    homeworkNotPassed: 'Noch nicht ganz!',
+    homeworkPassedHint: 'Super gemacht — dafür gibt es 1 BlockCoin extra. Der Artikel ist jetzt offen: Mach die Lektion fertig, dann bekommst du auch die normale Belohnung dafür.',
+    homeworkNotPassedHint: 'Kein Problem: Der Artikel ist trotzdem offen. Lies ihn durch, verbessere dein Projekt und gib es einfach noch einmal ab.',
+    homeworkScore: (score: number, total: number) => `${score} von ${total} Prüfungen bestanden`,
+    homeworkAttempts: (n: number) => (n === 1 ? '1 Abgabe' : `${n} Abgaben`),
+    homeworkLastFile: 'Zuletzt abgegeben',
+    homeworkEarnedCoin: '+1 BlockCoin für die Hausaufgabe!',
+
+    // Teacher — Homework overview
+    homeworkSubmissions: 'Abgegebene Hausaufgaben',
+    homeworkNoSubmissions: 'Noch keine Hausaufgaben abgegeben.',
+    homeworkDownload: 'Datei herunterladen',
+    homeworkFileReplaced: 'Durch neuere Abgabe ersetzt',
+    homeworkStatusPassed: 'Bestanden',
+    homeworkStatusFailed: 'Nicht bestanden',
     
     // Teacher Tabs Header
     teacherDashboard: 'Lehrer-Dashboard',

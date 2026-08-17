@@ -66,6 +66,25 @@ export default function Door({ project, index, onClick }: DoorProps) {
           {/* Door Knob */}
           <div className="absolute right-4 top-1/2 w-4 h-4 bg-yellow-600 rounded-full shadow-md border border-yellow-800"></div>
 
+          {/* Homework marker — tells the student a hand-in is waiting here */}
+          {project.projectType === 'homework' && state !== 'locked' && (
+            <div
+              className={`absolute top-16 z-10 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider shadow-md ${project.homeworkPassed
+                ? 'bg-green-600 text-white'
+                : project.homeworkSubmitted
+                  ? 'bg-amber-500 text-white'
+                  : 'bg-blue-600 text-white'
+                }`}
+              title={project.homeworkPassed
+                ? 'Hausaufgabe bestanden'
+                : project.homeworkSubmitted
+                  ? 'Hausaufgabe abgegeben'
+                  : 'Hausaufgabe noch abzugeben'}
+            >
+              📝 {project.homeworkPassed ? 'Bestanden' : project.homeworkSubmitted ? 'Abgegeben' : 'Hausaufgabe'}
+            </div>
+          )}
+
           {/* Label */}
           <div className="absolute bottom-4 z-10 bg-stone-900/80 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase">
             {label}

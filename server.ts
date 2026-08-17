@@ -9,6 +9,13 @@ import path from 'path';
 import fs from 'fs';
 import AdmZip from 'adm-zip';
 import db from './src/db.ts';
+import {
+  HOMEWORK_ALLOWED_EXTENSIONS,
+  HOMEWORK_MAX_FILE_BYTES,
+  isAllowedHomeworkFile,
+  runHomeworkTests,
+} from './src/lib/homeworkTests.ts';
+import { normalizeChecks } from './src/lib/homeworkChecks.ts';
 
 // JWT secret — required in all environments
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -55,6 +62,32 @@ const widgetUpload = multer({
     },
   }),
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB for widget zips
+});
+
+// ─── Homework hand-ins ────────────────────────────────────────────────
+// Kept out of the public /uploads tree: these are student files (.sb3, source
+// code) that must only ever be downloaded through an authenticated route,
+// never served as static — and never executed.
+const homeworkDir = path.resolve(process.cwd(), 'homework-uploads');
+fs.mkdirSync(homeworkDir, { recursive: true });
+
+const homeworkUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, homeworkDir),
+    filename: (_req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, uniqueSuffix + ext);
+    },
+  }),
+  limits: { fileSize: HOMEWORK_MAX_FILE_BYTES },
+  fileFilter: (_req, file, cb) => {
+    if (isAllowedHomeworkFile(file.originalname)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Dateityp nicht erlaubt. Erlaubt sind: ${HOMEWORK_ALLOWED_EXTENSIONS.join(', ')}`));
+    }
+  },
 });
 
 const storage = multer.diskStorage({
@@ -183,6 +216,121 @@ function syncProjectCompletion(userId: number | string, projectId: number | stri
   } else {
     db.prepare('INSERT INTO user_progress (userId, projectId, state) VALUES (?, ?, ?)').run(userId, projectId, 'completed');
   }
+}
+
+// ─── Homework helpers ────────────────────────────────────────────────
+
+// Students may hand in as often as they like, but the files must not pile up
+// forever. Only the newest attempt and the newest passing attempt keep their
+// file on disk; older attempts stay in the database (the teacher still sees
+// their per-check result) with the file marked as gone.
+// Smallest gap between two hand-ins of the same project by the same student.
+const HOMEWORK_COOLDOWN_MS = 5000;
+
+function removeHomeworkFile(storedName: string | null | undefined): void {
+  if (!storedName) return;
+  const filePath = path.resolve(homeworkDir, storedName);
+  // Never follow a tampered row out of the homework directory.
+  if (!filePath.startsWith(homeworkDir + path.sep)) return;
+  try { fs.unlinkSync(filePath); } catch {}
+}
+
+function pruneHomeworkFiles(userId: number | string, projectId: number | string): void {
+  const rows = db.prepare(`
+    SELECT id, storedName, passed FROM homework_submissions
+    WHERE userId = ? AND projectId = ? AND storedName != ''
+    ORDER BY createdAt DESC, id DESC
+  `).all(userId, projectId) as any[];
+
+  // At most two ids: the newest hand-in, plus the newest passing one so a
+  // student who broke a working project still has the good version on file.
+  const keep = new Set<number>();
+  if (rows.length > 0) keep.add(rows[0].id);
+  const newestPassing = rows.find(r => r.passed);
+  if (newestPassing) keep.add(newestPassing.id);
+
+  const clearFile = db.prepare("UPDATE homework_submissions SET storedName = '' WHERE id = ?");
+  for (const row of rows) {
+    if (keep.has(row.id)) continue;
+    removeHomeworkFile(row.storedName);
+    clearFile.run(row.id);
+  }
+}
+
+// Deleting a project or a student cascades the database rows, which would
+// otherwise orphan their files on disk forever.
+function deleteHomeworkFilesFor(where: 'projectId' | 'userId', id: number | string): void {
+  const rows = db.prepare(
+    `SELECT storedName FROM homework_submissions WHERE ${where} = ? AND storedName != ''`
+  ).all(id) as any[];
+  for (const row of rows) removeHomeworkFile(row.storedName);
+}
+
+// The article of a homework project stays closed until the student has handed
+// in a file. Whether the tests passed only decides the extra BlockCoin.
+function hasHandedInHomework(userId: number | string, projectId: number | string): boolean {
+  const row = db.prepare(
+    'SELECT id FROM homework_submissions WHERE userId = ? AND projectId = ? LIMIT 1'
+  ).get(userId, projectId);
+  return !!row;
+}
+
+function isHomeworkProject(projectId: number | string): boolean {
+  const row = db.prepare('SELECT projectType FROM projects WHERE id = ?').get(projectId) as any;
+  return row?.projectType === 'homework';
+}
+
+// A homework project counts as open for a student when they handed something
+// in — or when they are a teacher, who always sees the full article.
+function homeworkContentUnlocked(user: { id: number; role: string } | undefined, project: any): boolean {
+  if (project?.projectType !== 'homework') return true;
+  if (!user) return false;
+  if (user.role === 'teacher') return true;
+  return hasHandedInHomework(user.id, project.id);
+}
+
+function parseSubmissionRow(row: any) {
+  if (!row) return null;
+  let results: any[] = [];
+  try { results = JSON.parse(row.results); } catch { results = []; }
+  return {
+    id: row.id,
+    userId: row.userId,
+    projectId: row.projectId,
+    fileName: row.fileName,
+    fileSize: row.fileSize,
+    // Older attempts keep their result but not their file (see pruneHomeworkFiles).
+    fileAvailable: !!row.storedName,
+    passed: !!row.passed,
+    score: row.score,
+    total: row.total,
+    results,
+    createdAt: row.createdAt,
+    ...(row.studentName !== undefined ? { studentName: row.studentName } : {}),
+    ...(row.studentUsername !== undefined ? { studentUsername: row.studentUsername } : {}),
+    ...(row.projectTitle !== undefined ? { projectTitle: row.projectTitle } : {}),
+  };
+}
+
+// Everything the student UI needs to decide between "hand in first" and
+// "article is open".
+function buildHomeworkStatus(userId: number | string, project: any) {
+  const rows = db.prepare(
+    'SELECT * FROM homework_submissions WHERE userId = ? AND projectId = ? ORDER BY createdAt DESC, id DESC'
+  ).all(userId, project.id) as any[];
+
+  const coinAwarded = !!db.prepare(
+    'SELECT id FROM coin_transactions WHERE userId = ? AND refType = ? AND refId = ?'
+  ).get(userId, 'homework_pass', String(project.id));
+
+  return {
+    projectType: project.projectType || 'lesson',
+    submitted: rows.length > 0,
+    passed: rows.some(r => !!r.passed),
+    coinAwarded,
+    attempts: rows.length,
+    latest: parseSubmissionRow(rows[0]),
+  };
 }
 
 // Turn a stored SPA path into a human-readable label for the teacher UI,
@@ -525,8 +673,24 @@ async function startServer() {
 
     let previousCompleted = true;
 
+    // Which homework the student already handed in — drives the door badge.
+    const handedIn = new Set(
+      (db.prepare('SELECT DISTINCT projectId FROM homework_submissions WHERE userId = ?').all(userId) as any[])
+        .map(r => r.projectId)
+    );
+    const passedHomework = new Set(
+      (db.prepare('SELECT DISTINCT projectId FROM homework_submissions WHERE userId = ? AND passed = 1').all(userId) as any[])
+        .map(r => r.projectId)
+    );
+
     const result = projects.map((p) => {
       try { p.tags = JSON.parse(p.tags); } catch { p.tags = []; }
+      delete p.homeworkChecks;
+      p.projectType = p.projectType || 'lesson';
+      if (p.projectType === 'homework') {
+        p.homeworkSubmitted = handedIn.has(p.id);
+        p.homeworkPassed = passedHomework.has(p.id);
+      }
       const prog = progress.find(pr => pr.projectId === p.id);
       let state = 'locked';
 
@@ -567,6 +731,13 @@ async function startServer() {
     const { projectId } = req.params;
     const { userId, noScore } = req.body;
 
+    // Homework lessons cannot be finished before the file was handed in — the
+    // article was never open, so a completion here would be bogus.
+    if (isHomeworkProject(projectId) && !hasHandedInHomework(userId, projectId)) {
+      res.status(403).json({ success: false, message: 'Bitte zuerst die Hausaufgabe abgeben.' });
+      return;
+    }
+
     const existing = db.prepare('SELECT * FROM user_progress WHERE userId = ? AND projectId = ?').get(userId, projectId) as any;
     if (existing) {
       db.prepare('UPDATE user_progress SET state = ? WHERE userId = ? AND projectId = ?').run('completed', userId, projectId);
@@ -594,6 +765,12 @@ async function startServer() {
     const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id) as any;
     if (project) {
       try { project.tags = JSON.parse(project.tags); } catch { project.tags = []; }
+      try { project.homeworkChecks = JSON.parse(project.homeworkChecks); } catch { project.homeworkChecks = []; }
+      project.projectType = project.projectType || 'lesson';
+
+      const unlocked = homeworkContentUnlocked(req.user, project);
+      project.homeworkLocked = !unlocked;
+
       const segments = db.prepare('SELECT * FROM project_segments WHERE projectId = ? ORDER BY orderIndex ASC').all(project.id) as any[];
       segments.forEach(seg => {
          try { seg.quizzes = JSON.parse(seg.quizzes); } catch { seg.quizzes = []; }
@@ -601,8 +778,25 @@ async function startServer() {
          try { seg.quizzesDe = JSON.parse(seg.quizzesDe); } catch { seg.quizzesDe = []; }
          seg.isPublished = !!seg.isPublished;
          seg.isLocked = !!seg.isLocked;
+         // Hiding the article client-side would not be hiding it at all: strip
+         // the content server-side until the homework has been handed in.
+         if (!unlocked) {
+           seg.content = '';
+           seg.contentZh = '';
+           seg.contentDe = '';
+           seg.quizzes = [];
+           seg.quizzesZh = [];
+           seg.quizzesDe = [];
+         }
       });
       project.segments = segments;
+
+      if (req.user && req.user.role !== 'teacher') {
+        project.homeworkStatus = project.projectType === 'homework'
+          ? buildHomeworkStatus(req.user.id, project)
+          : null;
+      }
+
       res.json(project);
     } else {
       res.status(404).json({ error: 'Not found' });
@@ -633,6 +827,12 @@ async function startServer() {
     const { segmentId } = req.params;
     const { userId, noScore } = req.body;
 
+    const owner = db.prepare('SELECT projectId FROM project_segments WHERE id = ?').get(segmentId) as any;
+    if (owner && isHomeworkProject(owner.projectId) && !hasHandedInHomework(userId, owner.projectId)) {
+      res.status(403).json({ success: false, message: 'Bitte zuerst die Hausaufgabe abgeben.' });
+      return;
+    }
+
     const existing = db.prepare('SELECT * FROM user_segment_progress WHERE userId = ? AND segmentId = ?').get(userId, segmentId) as any;
     if (!existing) {
       db.prepare('INSERT INTO user_segment_progress (userId, segmentId, state) VALUES (?, ?, ?)').run(userId, segmentId, 'completed');
@@ -656,6 +856,190 @@ async function startServer() {
     if (seg) syncProjectCompletion(userId, seg.projectId);
 
     res.json({ success: true, coinAwarded });
+  });
+
+  // ─── Homework Routes ─────────────────────────────────────────────
+
+  // Current homework state for a student (attempts, latest test result)
+  app.get('/api/student/projects/:projectId/homework/:userId', authMiddleware, studentSelfOnly, (req: AuthRequest, res: Response) => {
+    const { projectId, userId } = req.params;
+    const project = db.prepare('SELECT id, projectType FROM projects WHERE id = ?').get(projectId) as any;
+    if (!project) {
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
+    const status = buildHomeworkStatus(userId, project);
+    const history = (db.prepare(
+      'SELECT * FROM homework_submissions WHERE userId = ? AND projectId = ? ORDER BY createdAt DESC, id DESC LIMIT 20'
+    ).all(userId, projectId) as any[]).map(parseSubmissionRow);
+    res.json({ ...status, history });
+  });
+
+  // Hand in a homework file — the system tests it, then opens the article.
+  //
+  // Passing the tests awards one BlockCoin (once per project), on top of
+  // whatever the finished lesson pays. Failing them still opens the article,
+  // so the lesson can be completed for that normal reward either way.
+  app.post('/api/student/projects/:projectId/homework', authMiddleware, (req: AuthRequest, res: Response) => {
+    homeworkUpload.single('file')(req, res, (err) => {
+      if (err) {
+        res.status(400).json({ success: false, message: err.message });
+        return;
+      }
+      if (!req.file) {
+        res.status(400).json({ success: false, message: 'Keine Datei hochgeladen.' });
+        return;
+      }
+
+      const cleanUp = () => { try { fs.unlinkSync(req.file!.path); } catch {} };
+      const { projectId } = req.params;
+      const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId) as any;
+
+      if (!project) {
+        cleanUp();
+        res.status(404).json({ success: false, message: 'Projekt nicht gefunden.' });
+        return;
+      }
+      if (project.projectType !== 'homework') {
+        cleanUp();
+        res.status(400).json({ success: false, message: 'Dieses Projekt nimmt keine Hausaufgaben an.' });
+        return;
+      }
+
+      // Multer already wrote the file, so the extension is re-checked here in
+      // case the original name carried a second, disallowed extension.
+      const originalName = path.basename(req.file.originalname).slice(0, 200);
+      let run;
+      try {
+        run = runHomeworkTests(req.file.path, originalName, (() => {
+          try { return JSON.parse(project.homeworkChecks || '[]'); } catch { return []; }
+        })());
+      } catch (testError: any) {
+        cleanUp();
+        res.status(500).json({ success: false, message: `Test fehlgeschlagen: ${testError.message}` });
+        return;
+      }
+
+      // Teachers can try their own checks without it counting for anyone.
+      if (req.user?.role === 'teacher') {
+        cleanUp();
+        res.json({ success: true, dryRun: true, ...run, coinAwarded: false });
+        return;
+      }
+
+      const userId = req.user!.id;
+
+      // Cheap brake against a script hammering the endpoint: real children do
+      // not hand in twice within five seconds.
+      const lastAttempt = db.prepare(`
+        SELECT createdAt FROM homework_submissions
+        WHERE userId = ? AND projectId = ? ORDER BY createdAt DESC, id DESC LIMIT 1
+      `).get(userId, project.id) as any;
+      if (lastAttempt) {
+        // SQLite stores UTC without a zone marker.
+        const age = Date.now() - new Date(lastAttempt.createdAt + 'Z').getTime();
+        if (age >= 0 && age < HOMEWORK_COOLDOWN_MS) {
+          cleanUp();
+          res.status(429).json({ success: false, message: 'Einen Moment bitte — probiere es in ein paar Sekunden noch einmal.' });
+          return;
+        }
+      }
+
+      const info = db.prepare(`
+        INSERT INTO homework_submissions (userId, projectId, fileName, storedName, fileSize, passed, score, total, results)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        userId, project.id, originalName, path.basename(req.file.filename), req.file.size,
+        run.passed ? 1 : 0, run.score, run.total, JSON.stringify(run.results),
+      );
+
+      // Keep the history, drop the old files.
+      pruneHomeworkFiles(userId, project.id);
+
+      // One coin per project for a passing hand-in, no matter how many tries.
+      let coinAwarded = false;
+      if (run.passed) {
+        const alreadyAwarded = db.prepare(
+          'SELECT id FROM coin_transactions WHERE userId = ? AND refType = ? AND refId = ?'
+        ).get(userId, 'homework_pass', String(project.id));
+        if (!alreadyAwarded) {
+          db.prepare('INSERT INTO coin_transactions (userId, amount, reason, refType, refId) VALUES (?, ?, ?, ?, ?)')
+            .run(userId, 1, 'Hausaufgabe bestanden', 'homework_pass', String(project.id));
+          db.prepare('UPDATE users SET coins = coins + 1 WHERE id = ?').run(userId);
+          coinAwarded = true;
+        }
+      }
+
+      // Handing in starts the lesson, so the door stops looking untouched.
+      const progress = db.prepare('SELECT state FROM user_progress WHERE userId = ? AND projectId = ?').get(userId, project.id) as any;
+      if (!progress) {
+        db.prepare('INSERT INTO user_progress (userId, projectId, state) VALUES (?, ?, ?)').run(userId, project.id, 'in-progress');
+      } else if (progress.state === 'unlocked') {
+        db.prepare('UPDATE user_progress SET state = ? WHERE userId = ? AND projectId = ?').run('in-progress', userId, project.id);
+      }
+
+      res.json({
+        success: true,
+        submissionId: info.lastInsertRowid,
+        coinAwarded,
+        ...run,
+      });
+    });
+  });
+
+  // Teacher: all hand-ins, newest first (optionally filtered)
+  app.get('/api/homework/submissions', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { projectId, userId, onlyLatest } = req.query as Record<string, string>;
+    const where: string[] = [];
+    const params: any[] = [];
+    if (projectId) { where.push('hs.projectId = ?'); params.push(projectId); }
+    if (userId) { where.push('hs.userId = ?'); params.push(userId); }
+
+    const rows = db.prepare(`
+      SELECT hs.*, u.username AS studentUsername, u.name AS studentName, p.title AS projectTitle
+      FROM homework_submissions hs
+      JOIN users u ON u.id = hs.userId
+      JOIN projects p ON p.id = hs.projectId
+      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+      ORDER BY hs.createdAt DESC, hs.id DESC
+      LIMIT 500
+    `).all(...params) as any[];
+
+    // "Latest per student and project" is what the overview table wants.
+    const filtered = onlyLatest === '1'
+      ? rows.filter((row, index) => rows.findIndex(r => r.userId === row.userId && r.projectId === row.projectId) === index)
+      : rows;
+
+    res.json(filtered.map(parseSubmissionRow));
+  });
+
+  // Download a hand-in (teacher, or the student who handed it in)
+  app.get('/api/homework/submissions/:id/file', authMiddleware, (req: AuthRequest, res: Response) => {
+    const row = db.prepare('SELECT * FROM homework_submissions WHERE id = ?').get(req.params.id) as any;
+    if (!row) {
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
+    if (req.user?.role !== 'teacher' && req.user?.id !== row.userId) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    // Superseded attempts keep their result but lose their file.
+    if (!row.storedName) {
+      res.status(410).json({ error: 'Diese Datei wurde durch eine neuere Abgabe ersetzt.' });
+      return;
+    }
+
+    // storedName comes from multer, but resolve-and-verify anyway so a
+    // tampered row can never escape the homework directory.
+    const filePath = path.resolve(homeworkDir, row.storedName);
+    if (!filePath.startsWith(homeworkDir + path.sep) || !fs.existsSync(filePath)) {
+      res.status(404).json({ error: 'Datei nicht mehr vorhanden' });
+      return;
+    }
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.download(filePath, row.fileName);
   });
 
   // ─── Teacher Routes (authenticated + teacher only) ───────────────
@@ -708,6 +1092,8 @@ async function startServer() {
   // Delete student
   app.delete('/api/users/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
     const { id } = req.params;
+    // The submission rows cascade, but their files on disk would not.
+    deleteHomeworkFilesFor('userId', id);
     db.prepare('DELETE FROM users WHERE id = ? AND role = ?').run(id, 'student');
     res.json({ success: true });
   });
@@ -838,7 +1224,17 @@ async function startServer() {
 
     projects.forEach(p => {
       try { p.tags = JSON.parse(p.tags); } catch { p.tags = []; }
+      try { p.homeworkChecks = JSON.parse(p.homeworkChecks); } catch { p.homeworkChecks = []; }
+      p.projectType = p.projectType || 'lesson';
       p.segments = segmentsByProject[p.id] || [];
+
+      // This list is primarily the teacher's project table, but any logged-in
+      // user can call it — so homework articles stay closed here as well.
+      if (!homeworkContentUnlocked(req.user, p)) {
+        p.homeworkLocked = true;
+        p.homeworkChecks = [];
+        p.segments = p.segments.map((seg: any) => ({ ...seg, content: '', contentZh: '', contentDe: '', quizzes: [], quizzesZh: [], quizzesDe: [] }));
+      }
     });
 
     res.json(projects);
@@ -856,12 +1252,14 @@ async function startServer() {
 
   // Add new project
   app.post('/api/projects', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
-    const { buildingId, title, titleZh = '', titleDe = '', description, descriptionZh = '', descriptionDe = '', scratchFileUrl, scratchProjectId, finalScratchFileUrl = '', finalScratchProjectId = '', coverImage, tags, segments } = req.body;
+    const { buildingId, title, titleZh = '', titleDe = '', description, descriptionZh = '', descriptionDe = '', scratchFileUrl, scratchProjectId, finalScratchFileUrl = '', finalScratchProjectId = '', coverImage, tags, segments, projectType, homeworkInstructions = '', homeworkChecks } = req.body;
     const maxOrder = db.prepare('SELECT MAX(orderIndex) as max FROM projects WHERE buildingId = ?').get(buildingId) as { max: number };
     const orderIndex = (maxOrder.max || 0) + 1;
 
-    const result = db.prepare('INSERT INTO projects (buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, isLocked, orderIndex, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, 1, orderIndex, JSON.stringify(tags || []));
+    const type = projectType === 'homework' ? 'homework' : 'lesson';
+
+    const result = db.prepare('INSERT INTO projects (buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, isLocked, orderIndex, tags, projectType, homeworkInstructions, homeworkChecks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, 1, orderIndex, JSON.stringify(tags || []), type, sanitizeHtml(homeworkInstructions || ''), JSON.stringify(normalizeChecks(homeworkChecks)));
 
     const projectId = result.lastInsertRowid;
 
@@ -912,10 +1310,12 @@ async function startServer() {
   // Update project
   app.put('/api/projects/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
     const { id } = req.params;
-    const { buildingId, title, titleZh = '', titleDe = '', description, descriptionZh = '', descriptionDe = '', scratchFileUrl, scratchProjectId, finalScratchFileUrl = '', finalScratchProjectId = '', coverImage, tags, segments } = req.body;
+    const { buildingId, title, titleZh = '', titleDe = '', description, descriptionZh = '', descriptionDe = '', scratchFileUrl, scratchProjectId, finalScratchFileUrl = '', finalScratchProjectId = '', coverImage, tags, segments, projectType, homeworkInstructions = '', homeworkChecks } = req.body;
 
-    db.prepare('UPDATE projects SET buildingId = ?, title = ?, titleZh = ?, titleDe = ?, description = ?, descriptionZh = ?, descriptionDe = ?, scratchFileUrl = ?, scratchProjectId = ?, finalScratchFileUrl = ?, finalScratchProjectId = ?, coverImage = ?, tags = ? WHERE id = ?')
-      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, JSON.stringify(tags || []), id);
+    const type = projectType === 'homework' ? 'homework' : 'lesson';
+
+    db.prepare('UPDATE projects SET buildingId = ?, title = ?, titleZh = ?, titleDe = ?, description = ?, descriptionZh = ?, descriptionDe = ?, scratchFileUrl = ?, scratchProjectId = ?, finalScratchFileUrl = ?, finalScratchProjectId = ?, coverImage = ?, tags = ?, projectType = ?, homeworkInstructions = ?, homeworkChecks = ? WHERE id = ?')
+      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, JSON.stringify(tags || []), type, sanitizeHtml(homeworkInstructions || ''), JSON.stringify(normalizeChecks(homeworkChecks)), id);
 
     if (Array.isArray(segments)) {
       const existingSegs = (db.prepare('SELECT id FROM project_segments WHERE projectId = ?').all(id) as any[]).map(s => s.id);
@@ -961,7 +1361,9 @@ async function startServer() {
   // Delete project
   app.delete('/api/projects/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
     const { id } = req.params;
-    // user_progress automatically deleted by FK ON DELETE CASCADE
+    // user_progress and homework_submissions are removed by FK ON DELETE
+    // CASCADE; the handed-in files have to go explicitly.
+    deleteHomeworkFilesFor('projectId', id);
     db.prepare('DELETE FROM projects WHERE id = ?').run(id);
     res.json({ success: true });
   });

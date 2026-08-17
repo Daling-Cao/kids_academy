@@ -9,9 +9,10 @@ import TableUp, { TableMenuContextmenu, TableResizeLine, TableSelection } from '
 import 'quill-table-up/index.css';
 import ImageUpload from '../components/ImageUpload';
 import ProjectPreview from './ProjectPreview';
+import HomeworkChecksEditor from './HomeworkChecksEditor';
 import { authFetch } from '../App';
 import { uploadFile } from '../lib/upload';
-import type { Building, Quiz, ProjectSegment, Widget } from '../types';
+import type { Building, Quiz, ProjectSegment, Widget, HomeworkCheck, ProjectType } from '../types';
 
 // react-quill-new's published props omit React's ref attribute even though the
 // component forwards the editor instance at runtime.
@@ -475,6 +476,9 @@ interface ProjectData {
     coverImage: string;
     tags?: string[];
     segments: ProjectSegment[];
+    projectType?: ProjectType;
+    homeworkInstructions?: string;
+    homeworkChecks?: HomeworkCheck[];
 }
 
 interface ProjectEditorProps {
@@ -521,7 +525,9 @@ function CollapsibleSection({ id, title, description, isOpen, onToggle, children
 export default function ProjectEditor({ project, setProject, onSubmit, onCancel, title, buildings, formId }: ProjectEditorProps) {
     const [tagInput, setTagInput] = useState('');
     const [showPreview, setShowPreview] = useState(false);
-    const [openSections, setOpenSections] = useState({ details: true, content: false, questions: false });
+    const [openSections, setOpenSections] = useState({ details: true, homework: false, content: false, questions: false });
+
+    const projectType: ProjectType = project.projectType === 'homework' ? 'homework' : 'lesson';
 
     const toggleSection = (section: keyof typeof openSections) => {
         setOpenSections(current => ({ ...current, [section]: !current[section] }));
@@ -687,6 +693,29 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                     onToggle={() => toggleSection('details')}
                 >
                 <div className="space-y-4">
+                <div>
+                    <label className="block text-sm font-medium text-stone-600 mb-2">Projekttyp</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {([
+                            { value: 'lesson' as const, icon: '📖', name: 'Normale Lektion', desc: 'Artikel lesen, Quiz lösen — die übliche Belohnung.' },
+                            { value: 'homework' as const, icon: '📝', name: 'Hausaufgabe', desc: 'Erst Datei abgeben und testen lassen, dann öffnet sich der Artikel — 1 BlockCoin extra, wenn der Test besteht.' },
+                        ]).map(option => (
+                            <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => setProject({ ...project, projectType: option.value })}
+                                className={`rounded-2xl border-2 p-4 text-left transition-all ${projectType === option.value
+                                    ? 'border-orange-400 bg-orange-50 shadow-md'
+                                    : 'border-stone-200 bg-white hover:border-orange-200'
+                                    }`}
+                            >
+                                <span className="block text-lg font-bold text-stone-800">{option.icon} {option.name}</span>
+                                <span className="mt-1 block text-sm text-stone-600">{option.desc}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-stone-600 mb-1">Building</label>
@@ -803,6 +832,47 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
 
                 </div>
                 </CollapsibleSection>
+
+                {projectType === 'homework' && (
+                    <CollapsibleSection
+                        id="project-homework-section"
+                        title="📝 Hausaufgabe & automatische Tests"
+                        description="Aufgabenstellung und die Prüfungen, die die abgegebene Datei bestehen muss"
+                        isOpen={openSections.homework}
+                        onToggle={() => toggleSection('homework')}
+                    >
+                        <div className="space-y-6">
+                            <div className="rounded-xl border-2 border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
+                                <p className="font-bold mb-1">Punkte-Regel</p>
+                                <ul className="list-disc space-y-0.5 pl-5">
+                                    <li>Abgegeben <strong>und Test bestanden</strong>: <strong>1 BlockCoin extra</strong> — zusätzlich zu der Belohnung, die es für die fertige Lektion sowieso gibt.</li>
+                                    <li>Abgegeben, Test <strong>nicht</strong> bestanden: kein Extra-Coin, aber der Artikel geht trotzdem auf — die fertige Lektion bringt die normale Belohnung.</li>
+                                    <li>Ohne Abgabe bleibt der Artikel zu.</li>
+                                </ul>
+                            </div>
+
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-stone-600">Aufgabenstellung für die Schüler</label>
+                                <p className="mb-2 text-xs text-stone-500">
+                                    Wird vor dem Abgabefeld angezeigt — also bevor der Artikel sichtbar ist.
+                                </p>
+                                <HtmlEditor
+                                    value={project.homeworkInstructions || ''}
+                                    onChange={(content) => setProject({ ...project, homeworkInstructions: content })}
+                                    style={{ height: '250px', marginBottom: '50px' }}
+                                />
+                            </div>
+
+                            <div>
+                                <h3 className="mb-3 text-xl font-bold text-orange-700">Automatische Prüfungen</h3>
+                                <HomeworkChecksEditor
+                                    checks={project.homeworkChecks || []}
+                                    onChange={(checks) => setProject({ ...project, homeworkChecks: checks })}
+                                />
+                            </div>
+                        </div>
+                    </CollapsibleSection>
+                )}
 
                 <CollapsibleSection
                     id="project-content-section"

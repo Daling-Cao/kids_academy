@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Plus, Edit2, Trash2, Lock, Unlock, GripVertical, FlaskConical, X, CheckCircle2, Save } from 'lucide-react';
 import ProjectEditor from '../components/ProjectEditor';
 import { authFetch } from '../App';
-import type { Project, Building, ProjectSegment } from '../types';
+import type { Project, Building, ProjectSegment, HomeworkCheck, ProjectType } from '../types';
 import { useI18n } from '../i18n';
 
 interface ProjectData {
@@ -17,6 +17,9 @@ interface ProjectData {
     coverImage: string;
     tags: string[];
     segments: ProjectSegment[];
+    projectType: ProjectType;
+    homeworkInstructions: string;
+    homeworkChecks: HomeworkCheck[];
 }
 
 interface EditingProject extends ProjectData {
@@ -114,7 +117,10 @@ export default function ProjectsTab() {
         finalScratchProjectId: '',
         coverImage: '',
         tags: [],
-        segments: []
+        segments: [],
+        projectType: 'lesson',
+        homeworkInstructions: '',
+        homeworkChecks: [],
     });
     const closeAddForm = useCallback(() => {
         setShowSaveConfirmation(false);
@@ -166,7 +172,7 @@ export default function ProjectsTab() {
 
         setEditingProject({ ...newProject, id: Number(data.id) });
         setShowAddForm(false);
-        setNewProject({ buildingId: buildings[0]?.id || 1, title: '', description: '', scratchFileUrl: '', scratchProjectId: '', finalScratchFileUrl: '', finalScratchProjectId: '', coverImage: '', tags: [], segments: [] });
+        setNewProject({ buildingId: buildings[0]?.id || 1, title: '', description: '', scratchFileUrl: '', scratchProjectId: '', finalScratchFileUrl: '', finalScratchProjectId: '', coverImage: '', tags: [], segments: [], projectType: 'lesson', homeworkInstructions: '', homeworkChecks: [] });
         setShowSaveConfirmation(true);
         fetchProjects();
     };
@@ -497,7 +503,16 @@ export default function ProjectsTab() {
                                             </td>
                                             <td className="p-4 text-stone-500 font-medium">{index + 1}</td>
                                             <td className="p-4 text-stone-600">{project.buildingName}</td>
-                                            <td className="p-4 font-bold text-stone-800">{project.title}</td>
+                                            <td className="p-4 font-bold text-stone-800">
+                                                <span className="flex items-center gap-2">
+                                                    {project.title}
+                                                    {project.projectType === 'homework' && (
+                                                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700" title="Hausaufgabe mit automatischem Test">
+                                                            📝 Hausaufgabe
+                                                        </span>
+                                                    )}
+                                                </span>
+                                            </td>
                                             <td className="p-4">
                                                 <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${project.isLocked ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
                                                     }`}>
@@ -560,7 +575,16 @@ export default function ProjectsTab() {
                                 </td>
                                 <td className="p-4 text-stone-500 font-medium">{index + 1}</td>
                                 <td className="p-4 text-stone-600">{project.buildingName}</td>
-                                <td className="p-4 font-bold text-stone-800">{project.title}</td>
+                                <td className="p-4 font-bold text-stone-800">
+                                    <span className="flex items-center gap-2">
+                                        {project.title}
+                                        {project.projectType === 'homework' && (
+                                            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700">
+                                                📝 Hausaufgabe
+                                            </span>
+                                        )}
+                                    </span>
+                                </td>
                                 <td className="p-4">
                                     <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${project.isLocked ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
                                         {project.isLocked ? <Lock size={12} /> : <Unlock size={12} />}
@@ -573,7 +597,7 @@ export default function ProjectsTab() {
                                     </button>
                                     <button
                                         onClick={() => {
-                                            setEditingProject({ id: project.id, buildingId: project.buildingId, title: project.title, description: project.description, scratchFileUrl: project.scratchFileUrl, scratchProjectId: project.scratchProjectId, finalScratchFileUrl: project.finalScratchFileUrl || '', finalScratchProjectId: project.finalScratchProjectId || '', coverImage: project.coverImage, tags: project.tags || [], segments: project.segments || [] });
+                                            setEditingProject({ id: project.id, buildingId: project.buildingId, title: project.title, description: project.description, scratchFileUrl: project.scratchFileUrl, scratchProjectId: project.scratchProjectId, finalScratchFileUrl: project.finalScratchFileUrl || '', finalScratchProjectId: project.finalScratchProjectId || '', coverImage: project.coverImage, tags: project.tags || [], segments: project.segments || [], projectType: project.projectType || 'lesson', homeworkInstructions: project.homeworkInstructions || '', homeworkChecks: project.homeworkChecks || [] });
                                             setShowAddForm(false);
                                         }}
                                         className="p-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors shadow-sm"
