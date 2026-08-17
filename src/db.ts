@@ -318,6 +318,45 @@ if (schemaVersion < 1) {
   }
 }
 
+// One-time migration: retroactively pay the homework-submission coin.
+// The coin used to be gated on the automatic test passing; it now fires on
+// any hand-in. A submission recorded under the old rule that never passed
+// has no coin_transaction at all, so without this backfill those students
+// would only get paid if they resubmit. One row per (user, project) pair
+// that has at least one submission but no matching transaction yet.
+if (schemaVersion < 2) {
+  try {
+    const unpaid = db.prepare(`
+      SELECT DISTINCT hs.userId, hs.projectId
+      FROM homework_submissions hs
+      WHERE NOT EXISTS (
+        SELECT 1 FROM coin_transactions ct
+        WHERE ct.userId = hs.userId
+          AND ct.refId = CAST(hs.projectId AS TEXT)
+          AND ct.refType IN ('homework_submit', 'homework_pass')
+      )
+    `).all() as { userId: number; projectId: number }[];
+
+    if (unpaid.length > 0) {
+      const insertTx = db.prepare(
+        "INSERT INTO coin_transactions (userId, amount, reason, refType, refId) VALUES (?, 1, 'Hausaufgabe abgegeben (nachträglich)', 'homework_submit', ?)"
+      );
+      const bumpCoins = db.prepare('UPDATE users SET coins = coins + 1 WHERE id = ?');
+      const backfill = db.transaction((rows: typeof unpaid) => {
+        for (const row of rows) {
+          insertTx.run(row.userId, String(row.projectId));
+          bumpCoins.run(row.userId);
+        }
+      });
+      backfill(unpaid);
+      console.log(`Backfilled the homework-submission coin for ${unpaid.length} student/project pair(s).`);
+    }
+    db.pragma('user_version = 2');
+  } catch (error) {
+    console.error('Error backfilling homework-submission coins:', error);
+  }
+}
+
 // Seed initial data if empty
 const adminUsername = process.env.ADMIN_USERNAME || 'teacher';
 const adminPassword = process.env.ADMIN_PASSWORD || 'kids-academy-default-secure-pwd-123'; // More unique placeholder
