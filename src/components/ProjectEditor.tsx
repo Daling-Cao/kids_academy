@@ -698,7 +698,7 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {([
                             { value: 'lesson' as const, icon: '📖', name: 'Normale Lektion', desc: 'Artikel lesen, Quiz lösen — die übliche Belohnung.' },
-                            { value: 'homework' as const, icon: '📝', name: 'Hausaufgabe', desc: 'Erst Datei abgeben und testen lassen, dann öffnet sich der Artikel — 1 BlockCoin extra, wenn der Test besteht.' },
+                            { value: 'homework' as const, icon: '📝', name: 'Hausaufgabe', desc: 'Erst Datei abgeben, dann öffnet sich der Artikel und es gibt 1 BlockCoin extra — unabhängig vom Testergebnis.' },
                         ]).map(option => (
                             <button
                                 key={option.value}
@@ -845,8 +845,8 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                             <div className="rounded-xl border-2 border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
                                 <p className="font-bold mb-1">Punkte-Regel</p>
                                 <ul className="list-disc space-y-0.5 pl-5">
-                                    <li>Abgegeben <strong>und Test bestanden</strong>: <strong>1 BlockCoin extra</strong> — zusätzlich zu der Belohnung, die es für die fertige Lektion sowieso gibt.</li>
-                                    <li>Abgegeben, Test <strong>nicht</strong> bestanden: kein Extra-Coin, aber der Artikel geht trotzdem auf — die fertige Lektion bringt die normale Belohnung.</li>
+                                    <li><strong>Abgegeben</strong> (Testergebnis egal): Artikel öffnet sich, <strong>1 BlockCoin extra</strong> — zusätzlich zu der Belohnung, die es für die fertige Lektion sowieso gibt.</li>
+                                    <li>Die automatische Prüfung ist nur Feedback für den Schüler und dich — sie entscheidet nicht mehr über den Coin.</li>
                                     <li>Ohne Abgabe bleibt der Artikel zu.</li>
                                 </ul>
                             </div>
