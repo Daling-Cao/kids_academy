@@ -159,7 +159,7 @@ export default function HomeworkPanel({ projectId, userId, instructions, status,
 
             {instructions && (
                 <div
-                    className="prose prose-blue mb-8 max-w-none text-lg leading-relaxed text-stone-700"
+                    className="prose prose-blue mb-8 max-w-none text-lg leading-relaxed text-stone-700 classroom-content"
                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(instructions) }}
                 />
             )}
