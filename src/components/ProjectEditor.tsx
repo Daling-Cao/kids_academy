@@ -110,15 +110,17 @@ function extractQuizSection(md: string): { quizzes: ParsedQuiz[]; rest: string }
     return { quizzes, rest };
 }
 
-function HtmlEditor({ value, onChange, style, className, onImportQuizzes }: {
+function HtmlEditor({ value, onChange, style, className, onImportContent }: {
     value: string;
     onChange: (content: string) => void;
     style?: React.CSSProperties;
     className?: string;
-    // When provided, a "## Quiz" / "## 小测验" section found in an imported
-    // markdown note is parsed into quiz objects and handed off here instead of
-    // being rendered as plain HTML in this field.
-    onImportQuizzes?: (quizzes: ParsedQuiz[]) => void;
+    // When provided, a Markdown import routes through here instead of onChange:
+    // a "## Quiz" / "## 小测验" section is parsed out into quiz objects and the
+    // remaining markdown is handed over as HTML, so the caller can apply both
+    // to its state in a single update (onChange and this can't safely both fire
+    // for the same import — see handleImportContent for why).
+    onImportContent?: (html: string, quizzes: ParsedQuiz[]) => void;
 }) {
     const quillRef = useRef<ReactQuill>(null);
     const toolbarId = useRef(`ql-tb-${++editorSeq}`).current;
@@ -243,16 +245,14 @@ function HtmlEditor({ value, onChange, style, className, onImportQuizzes }: {
                 return url ? `![${alt}](${url}${titlePart || ''})` : m;
             });
 
-            let quizzes: ParsedQuiz[] = [];
-            if (onImportQuizzes) {
+            if (onImportContent) {
                 const extracted = extractQuizSection(md);
-                quizzes = extracted.quizzes;
-                md = extracted.rest;
+                const html = marked.parse(extracted.rest, { async: false }) as string;
+                onImportContent(html, extracted.quizzes);
+            } else {
+                const html = marked.parse(md, { async: false }) as string;
+                onChange(html);
             }
-
-            const html = marked.parse(md, { async: false }) as string;
-            onChange(html);
-            if (quizzes.length > 0) onImportQuizzes?.(quizzes);
         } finally {
             setImporting(false);
             setImportProgress(null);
@@ -614,6 +614,18 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
     const [showPreview, setShowPreview] = useState(false);
     const [openSections, setOpenSections] = useState({ details: true, homework: false, content: false, questions: false });
 
+    // react-quill-new can echo a stray onChange for a segment's content field
+    // when its controlled `value` prop is updated programmatically (e.g. by a
+    // Markdown import): shouldComponentUpdate applies the new value and fires
+    // the change event synchronously, before React has committed the new
+    // props, so the callback it invokes is still the one closed over the
+    // *previous* render's `project`. handleUpdateSegment reads this ref
+    // instead of the `project` parameter so that a stale-triggered call still
+    // patches onto the latest state rather than reverting other changes
+    // (e.g. quizzes) made in the same update.
+    const projectRef = useRef(project);
+    projectRef.current = project;
+
     const projectType: ProjectType = project.projectType === 'homework' ? 'homework' : 'lesson';
 
     const toggleSection = (section: keyof typeof openSections) => {
@@ -653,9 +665,10 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
     };
 
     const handleUpdateSegment = (sIndex: number, field: string, value: any) => {
-        const newSegments = [...(project.segments || [])];
+        const current = projectRef.current;
+        const newSegments = [...(current.segments || [])];
         newSegments[sIndex] = { ...newSegments[sIndex], [field]: value };
-        setProject({ ...project, segments: newSegments });
+        setProject({ ...current, segments: newSegments });
     };
 
     const handleRemoveSegment = (sIndex: number) => {
@@ -682,15 +695,19 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
         setProject({ ...project, segments: newSegments });
     };
 
-    // Appends quizzes parsed out of an imported markdown note's "## Quiz"
-    // section directly into this segment's Fragen list, filling each quiz's
-    // options, correct answer and Explanation field from the note.
-    const handleImportQuizzes = (sIndex: number, parsed: ParsedQuiz[]) => {
+    // Applies a Markdown import to a segment: the note's HTML becomes the
+    // segment content, and any quizzes parsed out of its "## Quiz" section
+    // are appended to the segment's Fragen list (options, correct answer and
+    // Explanation filled in from the note). Both changes go through a single
+    // setProject call — this component's handlers all read `project` from
+    // closure and write it back non-functionally, so two separate calls in
+    // the same tick (as content-then-quizzes would be) would have the second
+    // overwrite the first using its own stale snapshot.
+    const handleImportContent = (sIndex: number, html: string, parsed: ParsedQuiz[]) => {
         const newSegments = [...(project.segments || [])];
-        const seg = newSegments[sIndex] as any;
+        const seg = { ...(newSegments[sIndex] as any), [cField]: html };
         const existing = Array.isArray(seg[qField]) ? seg[qField] : [];
         const room = Math.max(0, 5 - existing.length);
-        if (room === 0) return;
         const added = parsed.slice(0, room).map(q => {
             const options = q.options.slice(0, 4);
             while (options.length < 4) options.push('');
@@ -705,7 +722,7 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                 explanation: q.explanation,
             };
         });
-        seg[qField] = [...existing, ...added];
+        if (added.length > 0) seg[qField] = [...existing, ...added];
         newSegments[sIndex] = seg;
         setProject({ ...project, segments: newSegments });
         if (parsed.length > added.length) {
@@ -1066,7 +1083,7 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                                             <HtmlEditor
                                                 value={seg[cField] || ''}
                                                 onChange={(content) => handleUpdateSegment(sIndex, cField, content)}
-                                                onImportQuizzes={(quizzes) => handleImportQuizzes(sIndex, quizzes)}
+                                                onImportContent={(html, quizzes) => handleImportContent(sIndex, html, quizzes)}
                                                 style={{ height: 'calc(100% - 42px)' }}
                                                 className="bg-orange-50/10"
                                             />
