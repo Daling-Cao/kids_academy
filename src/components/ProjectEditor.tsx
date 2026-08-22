@@ -35,11 +35,92 @@ Quill.register({ [`modules/${TableUp.moduleName}`]: TableUp }, true);
 
 let editorSeq = 0;
 
-function HtmlEditor({ value, onChange, style, className }: {
+interface ParsedQuiz {
+    question: string;
+    options: string[];
+    correctOptionIndex: number;
+    explanation: string;
+}
+
+// Pulls a "## Quiz" / "## 小测验" section (as produced by the lesson blog
+// templates: numbered **N. question** lines followed by A–D options, with
+// answers in an Obsidian `> [!question]-` callout as `> N. **Letter** — reason`)
+// out of a markdown note, returning the parsed quizzes plus the markdown with
+// that section removed. Returns no quizzes if the note has no such section.
+function extractQuizSection(md: string): { quizzes: ParsedQuiz[]; rest: string } {
+    const lines = md.split('\n');
+    const headingRe = /^(#{1,6})\s*(?:Quiz|小测验)\b/i;
+    let startIdx = -1;
+    let headingLevel = 0;
+    for (let i = 0; i < lines.length; i++) {
+        const m = lines[i].match(headingRe);
+        if (m) { startIdx = i; headingLevel = m[1].length; break; }
+    }
+    if (startIdx === -1) return { quizzes: [], rest: md };
+
+    const nextHeadingRe = new RegExp(`^#{1,${headingLevel}}\\s+\\S`);
+    let endIdx = lines.length;
+    for (let i = startIdx + 1; i < lines.length; i++) {
+        if (nextHeadingRe.test(lines[i])) { endIdx = i; break; }
+    }
+
+    const sectionLines = lines.slice(startIdx + 1, endIdx);
+    const rest = [...lines.slice(0, startIdx), ...lines.slice(endIdx)].join('\n');
+
+    const calloutStart = sectionLines.findIndex(l => /^>\s*\[!question\]/i.test(l));
+    const questionLines = calloutStart === -1 ? sectionLines : sectionLines.slice(0, calloutStart);
+    const answerLines = calloutStart === -1 ? [] : sectionLines.slice(calloutStart);
+
+    const questionRe = /^\*\*(\d+)\.\s*(.+?)\*\*\s*$/;
+    const optionRe = /^([A-D])[.)]\s*(.+)$/;
+    const questions: { num: number; text: string; options: string[] }[] = [];
+    for (const raw of questionLines) {
+        const line = raw.trim();
+        if (!line) continue;
+        const qm = line.match(questionRe);
+        if (qm) {
+            questions.push({ num: parseInt(qm[1], 10), text: qm[2].trim(), options: [] });
+            continue;
+        }
+        const om = line.match(optionRe);
+        if (om && questions.length > 0) questions[questions.length - 1].options.push(om[2].trim());
+    }
+
+    const answerRe = /^>\s*(\d+)\.\s*\*\*([A-D])\*\*\s*[-—–]+\s*(.*)$/;
+    const answers = new Map<number, { letter: string; reason: string }>();
+    for (const raw of answerLines) {
+        const am = raw.trim().match(answerRe);
+        if (am) answers.set(parseInt(am[1], 10), { letter: am[2], reason: am[3].trim() });
+    }
+
+    const letterIndex = (l: string) => l.toUpperCase().charCodeAt(0) - 65;
+
+    const quizzes: ParsedQuiz[] = questions
+        .filter(q => q.options.length >= 2)
+        .map(q => {
+            const ans = answers.get(q.num);
+            return {
+                question: marked.parse(q.text, { async: false }) as string,
+                options: q.options,
+                correctOptionIndex: ans ? Math.max(0, letterIndex(ans.letter)) : 0,
+                explanation: ans?.reason ? (marked.parseInline(ans.reason, { async: false }) as string) : '',
+            };
+        });
+
+    return { quizzes, rest };
+}
+
+function HtmlEditor({ value, onChange, style, className, onImportContent }: {
     value: string;
     onChange: (content: string) => void;
     style?: React.CSSProperties;
     className?: string;
+    // When provided, a Markdown import routes through here instead of onChange:
+    // a "## Quiz" / "## 小测验" section is parsed out into quiz objects and the
+    // remaining markdown is handed over as HTML, so the caller can apply both
+    // to its state in a single update (onChange and this can't safely both fire
+    // for the same import — see handleImportContent for why).
+    onImportContent?: (html: string, quizzes: ParsedQuiz[]) => void;
 }) {
     const quillRef = useRef<ReactQuill>(null);
     const toolbarId = useRef(`ql-tb-${++editorSeq}`).current;
@@ -152,7 +233,7 @@ function HtmlEditor({ value, onChange, style, className }: {
             };
 
             let md = await mdFile.text();
-            // Obsidian wikilink embeds: ![[file.png]] or ![[file.png|alt-or-size]]
+            // Obsidian wikilink embeds: ![[file.png]] or ![[file.png|size]]
             md = md.replace(/!\[\[([^\]|]+?)(?:\|[^\]]*)?\]\]/g, (m, fname) => {
                 const url = resolveUrl(fname);
                 return url ? `![](${url})` : m;
@@ -164,8 +245,14 @@ function HtmlEditor({ value, onChange, style, className }: {
                 return url ? `![${alt}](${url}${titlePart || ''})` : m;
             });
 
-            const html = marked.parse(md, { async: false }) as string;
-            onChange(html);
+            if (onImportContent) {
+                const extracted = extractQuizSection(md);
+                const html = marked.parse(extracted.rest, { async: false }) as string;
+                onImportContent(html, extracted.quizzes);
+            } else {
+                const html = marked.parse(md, { async: false }) as string;
+                onChange(html);
+            }
         } finally {
             setImporting(false);
             setImportProgress(null);
@@ -527,6 +614,18 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
     const [showPreview, setShowPreview] = useState(false);
     const [openSections, setOpenSections] = useState({ details: true, homework: false, content: false, questions: false });
 
+    // react-quill-new can echo a stray onChange for a segment's content field
+    // when its controlled `value` prop is updated programmatically (e.g. by a
+    // Markdown import): shouldComponentUpdate applies the new value and fires
+    // the change event synchronously, before React has committed the new
+    // props, so the callback it invokes is still the one closed over the
+    // *previous* render's `project`. handleUpdateSegment reads this ref
+    // instead of the `project` parameter so that a stale-triggered call still
+    // patches onto the latest state rather than reverting other changes
+    // (e.g. quizzes) made in the same update.
+    const projectRef = useRef(project);
+    projectRef.current = project;
+
     const projectType: ProjectType = project.projectType === 'homework' ? 'homework' : 'lesson';
 
     const toggleSection = (section: keyof typeof openSections) => {
@@ -566,9 +665,10 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
     };
 
     const handleUpdateSegment = (sIndex: number, field: string, value: any) => {
-        const newSegments = [...(project.segments || [])];
+        const current = projectRef.current;
+        const newSegments = [...(current.segments || [])];
         newSegments[sIndex] = { ...newSegments[sIndex], [field]: value };
-        setProject({ ...project, segments: newSegments });
+        setProject({ ...current, segments: newSegments });
     };
 
     const handleRemoveSegment = (sIndex: number) => {
@@ -593,6 +693,41 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
         }];
         newSegments[sIndex] = seg;
         setProject({ ...project, segments: newSegments });
+    };
+
+    // Applies a Markdown import to a segment: the note's HTML becomes the
+    // segment content, and any quizzes parsed out of its "## Quiz" section
+    // are appended to the segment's Fragen list (options, correct answer and
+    // Explanation filled in from the note). Both changes go through a single
+    // setProject call — this component's handlers all read `project` from
+    // closure and write it back non-functionally, so two separate calls in
+    // the same tick (as content-then-quizzes would be) would have the second
+    // overwrite the first using its own stale snapshot.
+    const handleImportContent = (sIndex: number, html: string, parsed: ParsedQuiz[]) => {
+        const newSegments = [...(project.segments || [])];
+        const seg = { ...(newSegments[sIndex] as any), [cField]: html };
+        const existing = Array.isArray(seg[qField]) ? seg[qField] : [];
+        const room = Math.max(0, 5 - existing.length);
+        const added = parsed.slice(0, room).map(q => {
+            const options = q.options.slice(0, 4);
+            while (options.length < 4) options.push('');
+            return {
+                question: q.question,
+                questionImage: '',
+                options,
+                optionImages: ['', '', '', ''],
+                correctOptionIndex: q.correctOptionIndex,
+                correctOptionIndices: [q.correctOptionIndex],
+                isMultiSelect: false,
+                explanation: q.explanation,
+            };
+        });
+        if (added.length > 0) seg[qField] = [...existing, ...added];
+        newSegments[sIndex] = seg;
+        setProject({ ...project, segments: newSegments });
+        if (parsed.length > added.length) {
+            alert(`${added.length} von ${parsed.length} Quizfragen importiert — maximal 5 Fragen pro Abschnitt.`);
+        }
     };
 
     const handleUpdateQuiz = (sIndex: number, qIndex: number, field: string, value: any) => {
@@ -948,6 +1083,7 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                                             <HtmlEditor
                                                 value={seg[cField] || ''}
                                                 onChange={(content) => handleUpdateSegment(sIndex, cField, content)}
+                                                onImportContent={(html, quizzes) => handleImportContent(sIndex, html, quizzes)}
                                                 style={{ height: 'calc(100% - 42px)' }}
                                                 className="bg-orange-50/10"
                                             />
