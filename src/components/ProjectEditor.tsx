@@ -35,11 +35,90 @@ Quill.register({ [`modules/${TableUp.moduleName}`]: TableUp }, true);
 
 let editorSeq = 0;
 
-function HtmlEditor({ value, onChange, style, className }: {
+interface ParsedQuiz {
+    question: string;
+    options: string[];
+    correctOptionIndex: number;
+    explanation: string;
+}
+
+// Pulls a "## Quiz" / "## 小测验" section (as produced by the lesson blog
+// templates: numbered **N. question** lines followed by A–D options, with
+// answers in an Obsidian `> [!question]-` callout as `> N. **Letter** — reason`)
+// out of a markdown note, returning the parsed quizzes plus the markdown with
+// that section removed. Returns no quizzes if the note has no such section.
+function extractQuizSection(md: string): { quizzes: ParsedQuiz[]; rest: string } {
+    const lines = md.split('\n');
+    const headingRe = /^(#{1,6})\s*(?:Quiz|小测验)\b/i;
+    let startIdx = -1;
+    let headingLevel = 0;
+    for (let i = 0; i < lines.length; i++) {
+        const m = lines[i].match(headingRe);
+        if (m) { startIdx = i; headingLevel = m[1].length; break; }
+    }
+    if (startIdx === -1) return { quizzes: [], rest: md };
+
+    const nextHeadingRe = new RegExp(`^#{1,${headingLevel}}\\s+\\S`);
+    let endIdx = lines.length;
+    for (let i = startIdx + 1; i < lines.length; i++) {
+        if (nextHeadingRe.test(lines[i])) { endIdx = i; break; }
+    }
+
+    const sectionLines = lines.slice(startIdx + 1, endIdx);
+    const rest = [...lines.slice(0, startIdx), ...lines.slice(endIdx)].join('\n');
+
+    const calloutStart = sectionLines.findIndex(l => /^>\s*\[!question\]/i.test(l));
+    const questionLines = calloutStart === -1 ? sectionLines : sectionLines.slice(0, calloutStart);
+    const answerLines = calloutStart === -1 ? [] : sectionLines.slice(calloutStart);
+
+    const questionRe = /^\*\*(\d+)\.\s*(.+?)\*\*\s*$/;
+    const optionRe = /^([A-D])[.)]\s*(.+)$/;
+    const questions: { num: number; text: string; options: string[] }[] = [];
+    for (const raw of questionLines) {
+        const line = raw.trim();
+        if (!line) continue;
+        const qm = line.match(questionRe);
+        if (qm) {
+            questions.push({ num: parseInt(qm[1], 10), text: qm[2].trim(), options: [] });
+            continue;
+        }
+        const om = line.match(optionRe);
+        if (om && questions.length > 0) questions[questions.length - 1].options.push(om[2].trim());
+    }
+
+    const answerRe = /^>\s*(\d+)\.\s*\*\*([A-D])\*\*\s*[-—–]+\s*(.*)$/;
+    const answers = new Map<number, { letter: string; reason: string }>();
+    for (const raw of answerLines) {
+        const am = raw.trim().match(answerRe);
+        if (am) answers.set(parseInt(am[1], 10), { letter: am[2], reason: am[3].trim() });
+    }
+
+    const letterIndex = (l: string) => l.toUpperCase().charCodeAt(0) - 65;
+
+    const quizzes: ParsedQuiz[] = questions
+        .filter(q => q.options.length >= 2)
+        .map(q => {
+            const ans = answers.get(q.num);
+            return {
+                question: marked.parse(q.text, { async: false }) as string,
+                options: q.options,
+                correctOptionIndex: ans ? Math.max(0, letterIndex(ans.letter)) : 0,
+                explanation: ans?.reason ? (marked.parseInline(ans.reason, { async: false }) as string) : '',
+            };
+        });
+
+    return { quizzes, rest };
+}
+
+function HtmlEditor({ value, onChange, style, className, onImportQuizzes }: {
     value: string;
     onChange: (content: string) => void;
     style?: React.CSSProperties;
     className?: string;
+    // When provided, a "## Quiz" / "## 小测验" section found in an imported
+    // markdown note is parsed into quiz objects and handed off here instead of
+    // being rendered as plain HTML in this field.
+    onImportQuizzes?: (quizzes: ParsedQuiz[]) => void;
 }) {
     const quillRef = useRef<ReactQuill>(null);
     const toolbarId = useRef(`ql-tb-${++editorSeq}`).current;
@@ -152,7 +231,7 @@ function HtmlEditor({ value, onChange, style, className }: {
             };
 
             let md = await mdFile.text();
-            // Obsidian wikilink embeds: ![[file.png]] or ![[file.png|alt-or-size]]
+            // Obsidian wikilink embeds: ![[file.png]] or ![[file.png|size]]
             md = md.replace(/!\[\[([^\]|]+?)(?:\|[^\]]*)?\]\]/g, (m, fname) => {
                 const url = resolveUrl(fname);
                 return url ? `![](${url})` : m;
@@ -164,8 +243,16 @@ function HtmlEditor({ value, onChange, style, className }: {
                 return url ? `![${alt}](${url}${titlePart || ''})` : m;
             });
 
+            let quizzes: ParsedQuiz[] = [];
+            if (onImportQuizzes) {
+                const extracted = extractQuizSection(md);
+                quizzes = extracted.quizzes;
+                md = extracted.rest;
+            }
+
             const html = marked.parse(md, { async: false }) as string;
             onChange(html);
+            if (quizzes.length > 0) onImportQuizzes?.(quizzes);
         } finally {
             setImporting(false);
             setImportProgress(null);
@@ -595,6 +682,37 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
         setProject({ ...project, segments: newSegments });
     };
 
+    // Appends quizzes parsed out of an imported markdown note's "## Quiz"
+    // section directly into this segment's Fragen list, filling each quiz's
+    // options, correct answer and Explanation field from the note.
+    const handleImportQuizzes = (sIndex: number, parsed: ParsedQuiz[]) => {
+        const newSegments = [...(project.segments || [])];
+        const seg = newSegments[sIndex] as any;
+        const existing = Array.isArray(seg[qField]) ? seg[qField] : [];
+        const room = Math.max(0, 5 - existing.length);
+        if (room === 0) return;
+        const added = parsed.slice(0, room).map(q => {
+            const options = q.options.slice(0, 4);
+            while (options.length < 4) options.push('');
+            return {
+                question: q.question,
+                questionImage: '',
+                options,
+                optionImages: ['', '', '', ''],
+                correctOptionIndex: q.correctOptionIndex,
+                correctOptionIndices: [q.correctOptionIndex],
+                isMultiSelect: false,
+                explanation: q.explanation,
+            };
+        });
+        seg[qField] = [...existing, ...added];
+        newSegments[sIndex] = seg;
+        setProject({ ...project, segments: newSegments });
+        if (parsed.length > added.length) {
+            alert(`${added.length} von ${parsed.length} Quizfragen importiert — maximal 5 Fragen pro Abschnitt.`);
+        }
+    };
+
     const handleUpdateQuiz = (sIndex: number, qIndex: number, field: string, value: any) => {
         const newSegments = [...(project.segments || [])];
         const seg = newSegments[sIndex] as any;
@@ -948,6 +1066,7 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                                             <HtmlEditor
                                                 value={seg[cField] || ''}
                                                 onChange={(content) => handleUpdateSegment(sIndex, cField, content)}
+                                                onImportQuizzes={(quizzes) => handleImportQuizzes(sIndex, quizzes)}
                                                 style={{ height: 'calc(100% - 42px)' }}
                                                 className="bg-orange-50/10"
                                             />
