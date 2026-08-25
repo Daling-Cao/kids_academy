@@ -125,6 +125,28 @@ export interface HomeworkStatus {
     latest: HomeworkSubmission | null;
 }
 
+// ─── Assignment (freie Aufgabenabgabe) ────────────────────────────────
+// A lightweight, optional hand-in box any project can have: the teacher
+// writes instructions, the student answers with a screenshot, a link, or a
+// bit of text. Unlike homework, it never gates the article and only ever
+// keeps the student's latest attempt.
+
+export type AssignmentSubmissionType = 'image' | 'url' | 'text';
+
+export interface AssignmentSubmission {
+    id: number;
+    userId: number;
+    projectId: number;
+    submissionType: AssignmentSubmissionType;
+    content: string;
+    createdAt: string;
+    updatedAt: string;
+    // Joined columns, only present in the teacher views.
+    studentName?: string;
+    studentUsername?: string;
+    projectTitle?: string;
+}
+
 export interface Project {
     id: number;
     buildingId: number;
@@ -151,6 +173,9 @@ export interface Project {
     // homework has been handed in yet.
     homeworkLocked?: boolean;
     homeworkStatus?: HomeworkStatus | null;
+    assignmentInstructions?: string;
+    // Set by the server for students: their own current hand-in, if any.
+    assignmentSubmission?: AssignmentSubmission | null;
     // Only on the student's building listing, for the door badge.
     homeworkSubmitted?: boolean;
     homeworkPassed?: boolean;

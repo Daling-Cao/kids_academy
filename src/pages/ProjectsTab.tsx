@@ -20,6 +20,7 @@ interface ProjectData {
     projectType: ProjectType;
     homeworkInstructions: string;
     homeworkChecks: HomeworkCheck[];
+    assignmentInstructions: string;
 }
 
 interface EditingProject extends ProjectData {
@@ -121,6 +122,7 @@ export default function ProjectsTab() {
         projectType: 'lesson',
         homeworkInstructions: '',
         homeworkChecks: [],
+        assignmentInstructions: '',
     });
     const closeAddForm = useCallback(() => {
         setShowSaveConfirmation(false);
@@ -172,7 +174,7 @@ export default function ProjectsTab() {
 
         setEditingProject({ ...newProject, id: Number(data.id) });
         setShowAddForm(false);
-        setNewProject({ buildingId: buildings[0]?.id || 1, title: '', description: '', scratchFileUrl: '', scratchProjectId: '', finalScratchFileUrl: '', finalScratchProjectId: '', coverImage: '', tags: [], segments: [], projectType: 'lesson', homeworkInstructions: '', homeworkChecks: [] });
+        setNewProject({ buildingId: buildings[0]?.id || 1, title: '', description: '', scratchFileUrl: '', scratchProjectId: '', finalScratchFileUrl: '', finalScratchProjectId: '', coverImage: '', tags: [], segments: [], projectType: 'lesson', homeworkInstructions: '', homeworkChecks: [], assignmentInstructions: '' });
         setShowSaveConfirmation(true);
         fetchProjects();
     };
@@ -545,6 +547,10 @@ export default function ProjectsTab() {
                                                             coverImage: project.coverImage,
                                                             tags: project.tags || [],
                                                             segments: project.segments || [],
+                                                            projectType: project.projectType || 'lesson',
+                                                            homeworkInstructions: project.homeworkInstructions || '',
+                                                            homeworkChecks: project.homeworkChecks || [],
+                                                            assignmentInstructions: project.assignmentInstructions || '',
                                                         });
                                                         setShowAddForm(false);
                                                     }}
@@ -597,7 +603,7 @@ export default function ProjectsTab() {
                                     </button>
                                     <button
                                         onClick={() => {
-                                            setEditingProject({ id: project.id, buildingId: project.buildingId, title: project.title, description: project.description, scratchFileUrl: project.scratchFileUrl, scratchProjectId: project.scratchProjectId, finalScratchFileUrl: project.finalScratchFileUrl || '', finalScratchProjectId: project.finalScratchProjectId || '', coverImage: project.coverImage, tags: project.tags || [], segments: project.segments || [], projectType: project.projectType || 'lesson', homeworkInstructions: project.homeworkInstructions || '', homeworkChecks: project.homeworkChecks || [] });
+                                            setEditingProject({ id: project.id, buildingId: project.buildingId, title: project.title, description: project.description, scratchFileUrl: project.scratchFileUrl, scratchProjectId: project.scratchProjectId, finalScratchFileUrl: project.finalScratchFileUrl || '', finalScratchProjectId: project.finalScratchProjectId || '', coverImage: project.coverImage, tags: project.tags || [], segments: project.segments || [], projectType: project.projectType || 'lesson', homeworkInstructions: project.homeworkInstructions || '', homeworkChecks: project.homeworkChecks || [], assignmentInstructions: project.assignmentInstructions || '' });
                                             setShowAddForm(false);
                                         }}
                                         className="p-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors shadow-sm"

@@ -7,7 +7,8 @@ import { authFetch } from '../App';
 import SelectionPopup from '../components/SelectionPopup';
 import WidgetModal from '../components/WidgetModal';
 import HomeworkPanel from '../components/HomeworkPanel';
-import type { User, Project, Quiz, HomeworkStatus } from '../types';
+import AssignmentPanel from '../components/AssignmentPanel';
+import type { User, Project, Quiz, HomeworkStatus, AssignmentSubmission } from '../types';
 import { useI18n } from '../i18n';
 
 export default function Classroom({ user }: { user: User }) {
@@ -24,6 +25,7 @@ export default function Classroom({ user }: { user: User }) {
   const [error, setError] = useState('');
   const [showCoinAnimation, setShowCoinAnimation] = useState(false);
   const [homeworkStatus, setHomeworkStatus] = useState<HomeworkStatus | null>(null);
+  const [assignmentSubmission, setAssignmentSubmission] = useState<AssignmentSubmission | null>(null);
   const [activeWidget, setActiveWidget] = useState<{ id: number; name: string; entryFile: string } | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -44,6 +46,7 @@ export default function Classroom({ user }: { user: User }) {
       .then(([projectData, progressData]) => {
         setProject(projectData);
         setHomeworkStatus(projectData?.homeworkStatus || null);
+        setAssignmentSubmission(projectData?.assignmentSubmission || null);
         if (progressData?.state === 'completed') {
           setCompleted(true);
         }
@@ -273,6 +276,16 @@ export default function Classroom({ user }: { user: User }) {
               instructions={project.homeworkInstructions}
               status={homeworkStatus}
               onSubmitted={handleHomeworkSubmitted}
+              onCoinEarned={showCoin}
+            />
+          )}
+
+          {project.assignmentInstructions && (
+            <AssignmentPanel
+              projectId={project.id}
+              instructions={project.assignmentInstructions}
+              submission={assignmentSubmission}
+              onSubmitted={setAssignmentSubmission}
               onCoinEarned={showCoin}
             />
           )}
