@@ -566,6 +566,7 @@ interface ProjectData {
     projectType?: ProjectType;
     homeworkInstructions?: string;
     homeworkChecks?: HomeworkCheck[];
+    assignmentInstructions?: string;
 }
 
 interface ProjectEditorProps {
@@ -612,7 +613,7 @@ function CollapsibleSection({ id, title, description, isOpen, onToggle, children
 export default function ProjectEditor({ project, setProject, onSubmit, onCancel, title, buildings, formId }: ProjectEditorProps) {
     const [tagInput, setTagInput] = useState('');
     const [showPreview, setShowPreview] = useState(false);
-    const [openSections, setOpenSections] = useState({ details: true, homework: false, content: false, questions: false });
+    const [openSections, setOpenSections] = useState({ details: true, homework: false, assignment: false, content: false, questions: false });
 
     // react-quill-new can echo a stray onChange for a segment's content field
     // when its controlled `value` prop is updated programmatically (e.g. by a
@@ -1008,6 +1009,34 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                         </div>
                     </CollapsibleSection>
                 )}
+
+                <CollapsibleSection
+                    id="project-assignment-section"
+                    title="📮 Aufgabe abgeben (Screenshot, Link oder Text)"
+                    description="Optionale, frei einreichbare Aufgabe — unabhängig vom Hausaufgabe-Test oben"
+                    isOpen={openSections.assignment}
+                    onToggle={() => toggleSection('assignment')}
+                >
+                    <div className="space-y-4">
+                        <div className="rounded-xl border-2 border-purple-100 bg-purple-50 p-4 text-sm text-purple-900">
+                            <p className="font-bold mb-1">Punkte-Regel</p>
+                            <ul className="list-disc space-y-0.5 pl-5">
+                                <li>Sobald ein Schüler etwas abgibt (Screenshot, Link oder Text), gibt es <strong>1 BlockCoin</strong> — einmalig pro Projekt.</li>
+                                <li>Der Schüler kann seine Abgabe jederzeit durch eine neue ersetzen; nur die letzte Abgabe bleibt gespeichert.</li>
+                                <li>Bleibt das Feld unten leer, wird die Aufgabe-Box im Klassenzimmer gar nicht angezeigt.</li>
+                            </ul>
+                        </div>
+
+                        <div>
+                            <label className="mb-1 block text-sm font-medium text-stone-600">Aufgabenstellung für die Schüler</label>
+                            <HtmlEditor
+                                value={project.assignmentInstructions || ''}
+                                onChange={(content) => setProject({ ...project, assignmentInstructions: content })}
+                                style={{ height: '200px', marginBottom: '50px' }}
+                            />
+                        </div>
+                    </div>
+                </CollapsibleSection>
 
                 <CollapsibleSection
                     id="project-content-section"

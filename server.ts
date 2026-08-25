@@ -312,6 +312,24 @@ function parseSubmissionRow(row: any) {
   };
 }
 
+// ─── Assignment helpers (free-form: screenshot / URL / text) ─────────
+
+function parseAssignmentRow(row: any) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.userId,
+    projectId: row.projectId,
+    submissionType: row.submissionType,
+    content: row.content,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    ...(row.studentName !== undefined ? { studentName: row.studentName } : {}),
+    ...(row.studentUsername !== undefined ? { studentUsername: row.studentUsername } : {}),
+    ...(row.projectTitle !== undefined ? { projectTitle: row.projectTitle } : {}),
+  };
+}
+
 // Everything the student UI needs to decide between "hand in first" and
 // "article is open".
 function buildHomeworkStatus(userId: number | string, project: any) {
@@ -795,6 +813,10 @@ async function startServer() {
         project.homeworkStatus = project.projectType === 'homework'
           ? buildHomeworkStatus(req.user.id, project)
           : null;
+        const assignmentRow = db.prepare(
+          'SELECT * FROM assignment_submissions WHERE userId = ? AND projectId = ?'
+        ).get(req.user.id, project.id);
+        project.assignmentSubmission = parseAssignmentRow(assignmentRow);
       }
 
       res.json(project);
@@ -1043,6 +1065,111 @@ async function startServer() {
     res.download(filePath, row.fileName);
   });
 
+  // ─── Assignment Routes (free-form: screenshot / URL / text) ──────
+
+  // Current student's hand-in for a project, if any.
+  app.get('/api/student/projects/:projectId/assignment/:userId', authMiddleware, studentSelfOnly, (req: AuthRequest, res: Response) => {
+    const { projectId, userId } = req.params;
+    const row = db.prepare(
+      'SELECT * FROM assignment_submissions WHERE userId = ? AND projectId = ?'
+    ).get(userId, projectId);
+    res.json(parseAssignmentRow(row));
+  });
+
+  // Hand in (or overwrite) a screenshot / URL / text assignment. Awards one
+  // BlockCoin the first time a student hands something in for a project;
+  // resubmitting to fix or replace an answer does not pay again.
+  app.post('/api/student/projects/:projectId/assignment', authMiddleware, (req: AuthRequest, res: Response) => {
+    const { projectId } = req.params;
+    const userId = req.user!.id;
+    const { submissionType, content } = req.body;
+
+    if (submissionType !== 'image' && submissionType !== 'url' && submissionType !== 'text') {
+      res.status(400).json({ success: false, message: 'Ungültiger Abgabetyp.' });
+      return;
+    }
+    const raw = typeof content === 'string' ? content.trim() : '';
+    if (!raw) {
+      res.status(400).json({ success: false, message: 'Bitte etwas eingeben, bevor du abgibst.' });
+      return;
+    }
+
+    const project = db.prepare('SELECT id FROM projects WHERE id = ?').get(projectId) as any;
+    if (!project) {
+      res.status(404).json({ success: false, message: 'Projekt nicht gefunden.' });
+      return;
+    }
+
+    let stored = raw;
+    if (submissionType === 'image') {
+      // Must be one of our own uploads (via /api/upload), never an arbitrary URL.
+      if (!raw.startsWith('/uploads/') || raw.length > 500) {
+        res.status(400).json({ success: false, message: 'Bitte zuerst ein Bild hochladen.' });
+        return;
+      }
+    } else if (submissionType === 'url') {
+      if (!/^https?:\/\/\S+$/i.test(raw) || raw.length > 2000) {
+        res.status(400).json({ success: false, message: 'Das sieht nicht nach einem gültigen Link aus.' });
+        return;
+      }
+    } else {
+      if (raw.length > 5000) {
+        res.status(400).json({ success: false, message: 'Der Text ist zu lang (maximal 5000 Zeichen).' });
+        return;
+      }
+    }
+
+    const existing = db.prepare(
+      'SELECT id FROM assignment_submissions WHERE userId = ? AND projectId = ?'
+    ).get(userId, projectId) as any;
+    if (existing) {
+      db.prepare(
+        "UPDATE assignment_submissions SET submissionType = ?, content = ?, updatedAt = datetime('now') WHERE id = ?"
+      ).run(submissionType, stored, existing.id);
+    } else {
+      db.prepare(
+        'INSERT INTO assignment_submissions (userId, projectId, submissionType, content) VALUES (?, ?, ?, ?)'
+      ).run(userId, project.id, submissionType, stored);
+    }
+
+    let coinAwarded = false;
+    const alreadyAwarded = db.prepare(
+      "SELECT id FROM coin_transactions WHERE userId = ? AND refId = ? AND refType = 'assignment_submit'"
+    ).get(userId, String(project.id));
+    if (!alreadyAwarded) {
+      db.prepare('INSERT INTO coin_transactions (userId, amount, reason, refType, refId) VALUES (?, ?, ?, ?, ?)')
+        .run(userId, 1, 'Aufgabe abgegeben', 'assignment_submit', String(project.id));
+      db.prepare('UPDATE users SET coins = coins + 1 WHERE id = ?').run(userId);
+      coinAwarded = true;
+    }
+
+    const row = db.prepare(
+      'SELECT * FROM assignment_submissions WHERE userId = ? AND projectId = ?'
+    ).get(userId, project.id);
+    res.json({ success: true, coinAwarded, submission: parseAssignmentRow(row) });
+  });
+
+  // Teacher: all assignment hand-ins, newest first (optionally filtered)
+  app.get('/api/assignments/submissions', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { projectId, userId } = req.query as Record<string, string>;
+    const where: string[] = [];
+    const params: any[] = [];
+    if (projectId) { where.push('a.projectId = ?'); params.push(projectId); }
+    if (userId) { where.push('a.userId = ?'); params.push(userId); }
+
+    const rows = db.prepare(`
+      SELECT a.*, u.username AS studentUsername, u.name AS studentName, p.title AS projectTitle
+      FROM assignment_submissions a
+      JOIN users u ON u.id = a.userId
+      JOIN projects p ON p.id = a.projectId
+      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+      ORDER BY a.updatedAt DESC, a.id DESC
+      LIMIT 500
+    `).all(...params) as any[];
+
+    res.json(rows.map(parseAssignmentRow));
+  });
+
   // ─── Teacher Routes (authenticated + teacher only) ───────────────
 
   // Get all students
@@ -1253,14 +1380,14 @@ async function startServer() {
 
   // Add new project
   app.post('/api/projects', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
-    const { buildingId, title, titleZh = '', titleDe = '', description, descriptionZh = '', descriptionDe = '', scratchFileUrl, scratchProjectId, finalScratchFileUrl = '', finalScratchProjectId = '', coverImage, tags, segments, projectType, homeworkInstructions = '', homeworkChecks } = req.body;
+    const { buildingId, title, titleZh = '', titleDe = '', description, descriptionZh = '', descriptionDe = '', scratchFileUrl, scratchProjectId, finalScratchFileUrl = '', finalScratchProjectId = '', coverImage, tags, segments, projectType, homeworkInstructions = '', homeworkChecks, assignmentInstructions = '' } = req.body;
     const maxOrder = db.prepare('SELECT MAX(orderIndex) as max FROM projects WHERE buildingId = ?').get(buildingId) as { max: number };
     const orderIndex = (maxOrder.max || 0) + 1;
 
     const type = projectType === 'homework' ? 'homework' : 'lesson';
 
-    const result = db.prepare('INSERT INTO projects (buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, isLocked, orderIndex, tags, projectType, homeworkInstructions, homeworkChecks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, 1, orderIndex, JSON.stringify(tags || []), type, sanitizeHtml(homeworkInstructions || ''), JSON.stringify(normalizeChecks(homeworkChecks)));
+    const result = db.prepare('INSERT INTO projects (buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, isLocked, orderIndex, tags, projectType, homeworkInstructions, homeworkChecks, assignmentInstructions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, 1, orderIndex, JSON.stringify(tags || []), type, sanitizeHtml(homeworkInstructions || ''), JSON.stringify(normalizeChecks(homeworkChecks)), sanitizeHtml(assignmentInstructions || ''));
 
     const projectId = result.lastInsertRowid;
 
@@ -1311,12 +1438,12 @@ async function startServer() {
   // Update project
   app.put('/api/projects/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
     const { id } = req.params;
-    const { buildingId, title, titleZh = '', titleDe = '', description, descriptionZh = '', descriptionDe = '', scratchFileUrl, scratchProjectId, finalScratchFileUrl = '', finalScratchProjectId = '', coverImage, tags, segments, projectType, homeworkInstructions = '', homeworkChecks } = req.body;
+    const { buildingId, title, titleZh = '', titleDe = '', description, descriptionZh = '', descriptionDe = '', scratchFileUrl, scratchProjectId, finalScratchFileUrl = '', finalScratchProjectId = '', coverImage, tags, segments, projectType, homeworkInstructions = '', homeworkChecks, assignmentInstructions = '' } = req.body;
 
     const type = projectType === 'homework' ? 'homework' : 'lesson';
 
-    db.prepare('UPDATE projects SET buildingId = ?, title = ?, titleZh = ?, titleDe = ?, description = ?, descriptionZh = ?, descriptionDe = ?, scratchFileUrl = ?, scratchProjectId = ?, finalScratchFileUrl = ?, finalScratchProjectId = ?, coverImage = ?, tags = ?, projectType = ?, homeworkInstructions = ?, homeworkChecks = ? WHERE id = ?')
-      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, JSON.stringify(tags || []), type, sanitizeHtml(homeworkInstructions || ''), JSON.stringify(normalizeChecks(homeworkChecks)), id);
+    db.prepare('UPDATE projects SET buildingId = ?, title = ?, titleZh = ?, titleDe = ?, description = ?, descriptionZh = ?, descriptionDe = ?, scratchFileUrl = ?, scratchProjectId = ?, finalScratchFileUrl = ?, finalScratchProjectId = ?, coverImage = ?, tags = ?, projectType = ?, homeworkInstructions = ?, homeworkChecks = ?, assignmentInstructions = ? WHERE id = ?')
+      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, JSON.stringify(tags || []), type, sanitizeHtml(homeworkInstructions || ''), JSON.stringify(normalizeChecks(homeworkChecks)), sanitizeHtml(assignmentInstructions || ''), id);
 
     if (Array.isArray(segments)) {
       const existingSegs = (db.prepare('SELECT id FROM project_segments WHERE projectId = ?').all(id) as any[]).map(s => s.id);

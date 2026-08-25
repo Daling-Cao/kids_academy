@@ -52,6 +52,7 @@ db.exec(`
     projectType TEXT NOT NULL DEFAULT 'lesson',
     homeworkInstructions TEXT DEFAULT '',
     homeworkChecks TEXT DEFAULT '[]',
+    assignmentInstructions TEXT DEFAULT '',
     FOREIGN KEY (buildingId) REFERENCES buildings(id) ON DELETE CASCADE
   );
 
@@ -175,6 +176,22 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_homework_submissions_user_project
     ON homework_submissions(userId, projectId);
 
+  -- Free-form assignment hand-ins (screenshot / URL / text) for any project.
+  -- Unlike homework_submissions, a student only ever has one row per project:
+  -- resubmitting overwrites it instead of keeping history.
+  CREATE TABLE IF NOT EXISTS assignment_submissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId INTEGER NOT NULL,
+    projectId INTEGER NOT NULL,
+    submissionType TEXT NOT NULL,
+    content TEXT NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    updatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(userId, projectId),
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (projectId) REFERENCES projects(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS custom_emojis (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -258,6 +275,15 @@ if (projectsInfo.length > 0) {
       ALTER TABLE projects ADD COLUMN projectType TEXT NOT NULL DEFAULT 'lesson';
       ALTER TABLE projects ADD COLUMN homeworkInstructions TEXT DEFAULT '';
       ALTER TABLE projects ADD COLUMN homeworkChecks TEXT DEFAULT '[]';
+    `);
+  }
+
+  // Free-form assignment hand-in (screenshot/URL/text), independent of the
+  // homework-file gating above and available on any project type.
+  const hasAssignmentInstructions = projectsInfo.some(col => col.name === 'assignmentInstructions');
+  if (!hasAssignmentInstructions) {
+    db.exec(`
+      ALTER TABLE projects ADD COLUMN assignmentInstructions TEXT DEFAULT '';
     `);
   }
 }

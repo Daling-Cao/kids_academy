@@ -88,7 +88,24 @@ const translations = {
     homeworkFileReplaced: 'Durch neuere Abgabe ersetzt',
     homeworkStatusPassed: 'Bestanden',
     homeworkStatusFailed: 'Nicht bestanden',
-    
+
+    // Assignment (freie Aufgabenabgabe: Screenshot / Link / Text)
+    assignmentTitle: 'Aufgabe abgeben',
+    assignmentTypeImage: 'Screenshot',
+    assignmentTypeUrl: 'Link',
+    assignmentTypeText: 'Text',
+    assignmentTextPlaceholder: 'Schreib hier deine Antwort…',
+    assignmentSubmit: 'Abgeben',
+    assignmentSubmitting: 'Wird abgegeben…',
+    assignmentResubmit: 'Erneut abgeben',
+    assignmentSubmitted: 'Abgegeben',
+    assignmentSubmitFailed: 'Das Abgeben hat leider nicht geklappt. Versuch es noch einmal.',
+    assignmentEarnedCoin: '+1 BlockCoin für die Abgabe!',
+
+    // Teacher — Assignment overview
+    assignmentSubmissions: 'Abgegebene Aufgaben',
+    assignmentNoSubmissions: 'Noch keine Aufgabe abgegeben.',
+
     // Teacher Tabs Header
     teacherDashboard: 'Lehrer-Dashboard',
     tabBuildings: 'Gebäude',
