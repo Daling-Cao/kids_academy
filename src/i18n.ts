@@ -98,13 +98,18 @@ const translations = {
     assignmentSubmit: 'Abgeben',
     assignmentSubmitting: 'Wird abgegeben…',
     assignmentResubmit: 'Erneut abgeben',
-    assignmentSubmitted: 'Abgegeben',
+    assignmentStatusSubmitted: 'Abgegeben',
+    assignmentStatusNotSubmitted: 'Noch nicht abgegeben',
+    assignmentLastSubmitted: 'Zuletzt abgegeben',
     assignmentSubmitFailed: 'Das Abgeben hat leider nicht geklappt. Versuch es noch einmal.',
     assignmentEarnedCoin: '+1 BlockCoin für die Abgabe!',
 
     // Teacher — Assignment overview
     assignmentSubmissions: 'Abgegebene Aufgaben',
     assignmentNoSubmissions: 'Noch keine Aufgabe abgegeben.',
+    assignmentDownload: 'Herunterladen',
+    assignmentDelete: 'Löschen',
+    assignmentDeleteConfirm: 'Diese Abgabe endgültig löschen? Der Screenshot wird vom Server entfernt. Lade ihn vorher herunter, wenn du ihn behalten möchtest.',
 
     // Teacher Tabs Header
     teacherDashboard: 'Lehrer-Dashboard',

@@ -330,6 +330,38 @@ function parseAssignmentRow(row: any) {
   };
 }
 
+function uploadFilenameFromUrl(url: string): string | null {
+  const m = /^\/uploads\/([A-Za-z0-9._-]+)$/.exec(url);
+  return m ? m[1] : null;
+}
+
+// Delete the screenshot behind an assignment hand-in from disk — but only if
+// the student uploaded it themselves and no other hand-in still points at it.
+// Call this AFTER the submission row has been changed or removed.
+function removeAssignmentImage(content: string, ownerId: number): void {
+  const filename = uploadFilenameFromUrl(content);
+  if (!filename) return;
+  const owner = db.prepare('SELECT userId FROM upload_owners WHERE filename = ?').get(filename) as any;
+  if (!owner || owner.userId !== ownerId) return;
+  if (db.prepare('SELECT id FROM assignment_submissions WHERE content = ? LIMIT 1').get(content)) return;
+
+  const filePath = path.resolve(uploadsDir, filename);
+  if (filePath.startsWith(uploadsDir + path.sep)) {
+    try { fs.unlinkSync(filePath); } catch {}
+  }
+  db.prepare('DELETE FROM upload_owners WHERE filename = ?').run(filename);
+}
+
+// Deleting a project or a student cascades the rows, which would otherwise
+// leave their screenshots on disk forever.
+function deleteAssignmentFilesFor(where: 'projectId' | 'userId', id: number | string): void {
+  const rows = db.prepare(
+    `SELECT userId, content FROM assignment_submissions WHERE ${where} = ? AND submissionType = 'image'`
+  ).all(id) as any[];
+  db.prepare(`DELETE FROM assignment_submissions WHERE ${where} = ?`).run(id);
+  for (const row of rows) removeAssignmentImage(row.content, row.userId);
+}
+
 // Everything the student UI needs to decide between "hand in first" and
 // "article is open".
 function buildHomeworkStatus(userId: number | string, project: any) {
@@ -491,6 +523,8 @@ async function startServer() {
         return;
       }
       const url = `/uploads/${req.file.filename}`;
+      db.prepare('INSERT OR REPLACE INTO upload_owners (filename, userId) VALUES (?, ?)')
+        .run(req.file.filename, req.user!.id);
       res.json({ success: true, url });
     });
   });
@@ -1102,8 +1136,14 @@ async function startServer() {
 
     let stored = raw;
     if (submissionType === 'image') {
-      // Must be one of our own uploads (via /api/upload), never an arbitrary URL.
-      if (!raw.startsWith('/uploads/') || raw.length > 500) {
+      // Must be a file this student uploaded themselves via /api/upload —
+      // not an arbitrary URL and not someone else's file (which the teacher
+      // could later delete along with the hand-in).
+      const uploadedName = uploadFilenameFromUrl(raw);
+      const uploadOwner = uploadedName
+        ? db.prepare('SELECT userId FROM upload_owners WHERE filename = ?').get(uploadedName) as any
+        : null;
+      if (!uploadOwner || uploadOwner.userId !== userId) {
         res.status(400).json({ success: false, message: 'Bitte zuerst ein Bild hochladen.' });
         return;
       }
@@ -1120,12 +1160,14 @@ async function startServer() {
     }
 
     const existing = db.prepare(
-      'SELECT id FROM assignment_submissions WHERE userId = ? AND projectId = ?'
+      'SELECT id, submissionType, content FROM assignment_submissions WHERE userId = ? AND projectId = ?'
     ).get(userId, projectId) as any;
     if (existing) {
       db.prepare(
         "UPDATE assignment_submissions SET submissionType = ?, content = ?, updatedAt = datetime('now') WHERE id = ?"
       ).run(submissionType, stored, existing.id);
+      // The replaced screenshot is no longer referenced — free its disk space.
+      if (existing.submissionType === 'image') removeAssignmentImage(existing.content, userId);
     } else {
       db.prepare(
         'INSERT INTO assignment_submissions (userId, projectId, submissionType, content) VALUES (?, ?, ?, ?)'
@@ -1168,6 +1210,93 @@ async function startServer() {
     `).all(...params) as any[];
 
     res.json(rows.map(parseAssignmentRow));
+  });
+
+  // Teacher: download a hand-in — the screenshot file, or the text as .txt.
+  // (A URL hand-in has nothing stored on the server to download.)
+  app.get('/api/assignments/submissions/:id/download', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const row = db.prepare(`
+      SELECT a.*, u.username AS studentUsername, p.title AS projectTitle
+      FROM assignment_submissions a
+      JOIN users u ON u.id = a.userId
+      JOIN projects p ON p.id = a.projectId
+      WHERE a.id = ?
+    `).get(req.params.id) as any;
+    if (!row) {
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
+
+    const baseName = `${row.studentUsername}_${row.projectTitle}`.replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 100);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+
+    if (row.submissionType === 'text') {
+      res.attachment(`${baseName}.txt`).type('text/plain; charset=utf-8').send(row.content);
+      return;
+    }
+    if (row.submissionType === 'image') {
+      const filename = uploadFilenameFromUrl(row.content);
+      const filePath = filename ? path.resolve(uploadsDir, filename) : '';
+      if (!filename || !filePath.startsWith(uploadsDir + path.sep) || !fs.existsSync(filePath)) {
+        res.status(404).json({ error: 'Datei nicht mehr vorhanden' });
+        return;
+      }
+      res.download(filePath, `${baseName}${path.extname(filename)}`);
+      return;
+    }
+    res.status(400).json({ error: 'Ein Link kann nicht heruntergeladen werden.' });
+  });
+
+  // Teacher: delete a hand-in (and its screenshot file) to free server space.
+  app.delete('/api/assignments/submissions/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const row = db.prepare('SELECT * FROM assignment_submissions WHERE id = ?').get(req.params.id) as any;
+    if (!row) {
+      res.status(404).json({ success: false, message: 'Not found' });
+      return;
+    }
+    db.prepare('DELETE FROM assignment_submissions WHERE id = ?').run(row.id);
+    if (row.submissionType === 'image') removeAssignmentImage(row.content, row.userId);
+    res.json({ success: true });
+  });
+
+  // Teacher: per assignment-enabled project, every student with a
+  // submitted / not-submitted flag — answers "who still owes me this one?".
+  app.get('/api/assignments/overview', authMiddleware, teacherOnly, (_req: AuthRequest, res: Response) => {
+    const projects = db.prepare(`
+      SELECT p.id, p.title, b.name AS buildingName
+      FROM projects p
+      LEFT JOIN buildings b ON b.id = p.buildingId
+      WHERE p.assignmentInstructions IS NOT NULL AND trim(p.assignmentInstructions) != ''
+      ORDER BY p.buildingId ASC, p.orderIndex ASC
+    `).all() as any[];
+    const students = db.prepare(
+      "SELECT id, username, name FROM users WHERE role = 'student' ORDER BY username ASC"
+    ).all() as any[];
+    const subs = db.prepare(
+      'SELECT userId, projectId, submissionType, updatedAt FROM assignment_submissions'
+    ).all() as any[];
+
+    res.json(projects.map(p => {
+      const rows = students.map(s => {
+        const sub = subs.find(x => x.userId === s.id && x.projectId === p.id);
+        return {
+          userId: s.id,
+          username: s.username,
+          name: s.name,
+          submitted: !!sub,
+          submissionType: sub?.submissionType ?? null,
+          updatedAt: sub?.updatedAt ?? null,
+        };
+      });
+      return {
+        projectId: p.id,
+        projectTitle: p.title,
+        buildingName: p.buildingName,
+        submittedCount: rows.filter(r => r.submitted).length,
+        studentCount: rows.length,
+        students: rows,
+      };
+    }));
   });
 
   // ─── Teacher Routes (authenticated + teacher only) ───────────────
@@ -1222,6 +1351,7 @@ async function startServer() {
     const { id } = req.params;
     // The submission rows cascade, but their files on disk would not.
     deleteHomeworkFilesFor('userId', id);
+    deleteAssignmentFilesFor('userId', id);
     db.prepare('DELETE FROM users WHERE id = ? AND role = ?').run(id, 'student');
     res.json({ success: true });
   });
@@ -1492,6 +1622,7 @@ async function startServer() {
     // user_progress and homework_submissions are removed by FK ON DELETE
     // CASCADE; the handed-in files have to go explicitly.
     deleteHomeworkFilesFor('projectId', id);
+    deleteAssignmentFilesFor('projectId', id);
     db.prepare('DELETE FROM projects WHERE id = ?').run(id);
     res.json({ success: true });
   });

@@ -192,6 +192,16 @@ db.exec(`
     FOREIGN KEY (projectId) REFERENCES projects(id) ON DELETE CASCADE
   );
 
+  -- Who uploaded which file under /uploads. Lets assignment hand-ins only
+  -- reference (and later delete) files the student uploaded themselves, so
+  -- deleting a hand-in can never remove e.g. a project's cover image.
+  CREATE TABLE IF NOT EXISTS upload_owners (
+    filename TEXT PRIMARY KEY,
+    userId INTEGER NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS custom_emojis (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
