@@ -330,6 +330,21 @@ function parseAssignmentRow(row: any) {
   };
 }
 
+// Quill leaves markup like <p><br></p> behind when the editor is cleared, so
+// "has instructions" has to look at the content, not at string emptiness.
+function hasAssignmentInstructions(html: string | null | undefined): boolean {
+  if (!html) return false;
+  if (/<img\b/i.test(html)) return true;
+  return html.replace(/<[^>]*>/g, '').replace(/&nbsp;|\s/g, '').length > 0;
+}
+
+// Sanitized instructions, or '' when the editor was effectively cleared — an
+// empty value is what switches the assignment off for a project.
+function cleanAssignmentInstructions(html: string | null | undefined): string {
+  const clean = sanitizeHtml(html || '');
+  return hasAssignmentInstructions(clean) ? clean : '';
+}
+
 function uploadFilenameFromUrl(url: string): string | null {
   const m = /^\/uploads\/([A-Za-z0-9._-]+)$/.exec(url);
   return m ? m[1] : null;
@@ -819,6 +834,8 @@ async function startServer() {
       try { project.tags = JSON.parse(project.tags); } catch { project.tags = []; }
       try { project.homeworkChecks = JSON.parse(project.homeworkChecks); } catch { project.homeworkChecks = []; }
       project.projectType = project.projectType || 'lesson';
+      // Rows saved before the editor's "empty" markup was normalised.
+      if (!hasAssignmentInstructions(project.assignmentInstructions)) project.assignmentInstructions = '';
 
       const unlocked = homeworkContentUnlocked(req.user, project);
       project.homeworkLocked = !unlocked;
@@ -1128,9 +1145,15 @@ async function startServer() {
       return;
     }
 
-    const project = db.prepare('SELECT id FROM projects WHERE id = ?').get(projectId) as any;
+    const project = db.prepare('SELECT id, assignmentInstructions FROM projects WHERE id = ?').get(projectId) as any;
     if (!project) {
       res.status(404).json({ success: false, message: 'Projekt nicht gefunden.' });
+      return;
+    }
+    // Without instructions the teacher never enabled the assignment, so there
+    // is nothing to hand in — and no coin to earn.
+    if (!hasAssignmentInstructions(project.assignmentInstructions)) {
+      res.status(400).json({ success: false, message: 'Für dieses Projekt gibt es keine Aufgabe zum Abgeben.' });
       return;
     }
 
@@ -1262,11 +1285,10 @@ async function startServer() {
   // Teacher: per assignment-enabled project, every student with a
   // submitted / not-submitted flag — answers "who still owes me this one?".
   app.get('/api/assignments/overview', authMiddleware, teacherOnly, (_req: AuthRequest, res: Response) => {
-    const projects = db.prepare(`
-      SELECT p.id, p.title, b.name AS buildingName
+    const allProjects = db.prepare(`
+      SELECT p.id, p.title, p.assignmentInstructions, b.name AS buildingName
       FROM projects p
       LEFT JOIN buildings b ON b.id = p.buildingId
-      WHERE p.assignmentInstructions IS NOT NULL AND trim(p.assignmentInstructions) != ''
       ORDER BY p.buildingId ASC, p.orderIndex ASC
     `).all() as any[];
     const students = db.prepare(
@@ -1275,6 +1297,12 @@ async function startServer() {
     const subs = db.prepare(
       'SELECT userId, projectId, submissionType, updatedAt FROM assignment_submissions'
     ).all() as any[];
+
+    // A project stays listed after the teacher switches its assignment off
+    // as long as hand-ins remain, so they can still be downloaded or deleted.
+    const projects = allProjects.filter(p =>
+      hasAssignmentInstructions(p.assignmentInstructions) || subs.some(s => s.projectId === p.id)
+    );
 
     res.json(projects.map(p => {
       const rows = students.map(s => {
@@ -1517,7 +1545,7 @@ async function startServer() {
     const type = projectType === 'homework' ? 'homework' : 'lesson';
 
     const result = db.prepare('INSERT INTO projects (buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, isLocked, orderIndex, tags, projectType, homeworkInstructions, homeworkChecks, assignmentInstructions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, 1, orderIndex, JSON.stringify(tags || []), type, sanitizeHtml(homeworkInstructions || ''), JSON.stringify(normalizeChecks(homeworkChecks)), sanitizeHtml(assignmentInstructions || ''));
+      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, 1, orderIndex, JSON.stringify(tags || []), type, sanitizeHtml(homeworkInstructions || ''), JSON.stringify(normalizeChecks(homeworkChecks)), cleanAssignmentInstructions(assignmentInstructions));
 
     const projectId = result.lastInsertRowid;
 
@@ -1573,7 +1601,7 @@ async function startServer() {
     const type = projectType === 'homework' ? 'homework' : 'lesson';
 
     db.prepare('UPDATE projects SET buildingId = ?, title = ?, titleZh = ?, titleDe = ?, description = ?, descriptionZh = ?, descriptionDe = ?, scratchFileUrl = ?, scratchProjectId = ?, finalScratchFileUrl = ?, finalScratchProjectId = ?, coverImage = ?, tags = ?, projectType = ?, homeworkInstructions = ?, homeworkChecks = ?, assignmentInstructions = ? WHERE id = ?')
-      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, JSON.stringify(tags || []), type, sanitizeHtml(homeworkInstructions || ''), JSON.stringify(normalizeChecks(homeworkChecks)), sanitizeHtml(assignmentInstructions || ''), id);
+      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, JSON.stringify(tags || []), type, sanitizeHtml(homeworkInstructions || ''), JSON.stringify(normalizeChecks(homeworkChecks)), cleanAssignmentInstructions(assignmentInstructions), id);
 
     if (Array.isArray(segments)) {
       const existingSegs = (db.prepare('SELECT id FROM project_segments WHERE projectId = ?').all(id) as any[]).map(s => s.id);
