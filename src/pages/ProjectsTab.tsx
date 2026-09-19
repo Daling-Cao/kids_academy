@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Plus, Edit2, Trash2, Lock, Unlock, GripVertical, FlaskConical, X, CheckCircle2, Save } from 'lucide-react';
 import ProjectEditor from '../components/ProjectEditor';
 import { authFetch } from '../App';
-import type { Project, Building, ProjectSegment, HomeworkCheck, ProjectType } from '../types';
+import type { Project, Building, ProjectSegment, HomeworkCheck, ProjectType, AssignmentOverviewProject } from '../types';
 import { useI18n } from '../i18n';
 
 interface ProjectData {
@@ -108,6 +108,8 @@ export default function ProjectsTab() {
     const [showAddForm, setShowAddForm] = useState(false);
     const [editingProject, setEditingProject] = useState<EditingProject | null>(null);
     const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
+    const [assignmentOverview, setAssignmentOverview] = useState<Record<number, AssignmentOverviewProject>>({});
+    const [expandedAssignmentId, setExpandedAssignmentId] = useState<number | null>(null);
     const [newProject, setNewProject] = useState<ProjectData>({
         buildingId: 1,
         title: '',
@@ -148,6 +150,14 @@ export default function ProjectsTab() {
             .then(res => res.json())
             .then(data => setProjects(data))
             .catch(err => console.error('Failed to fetch projects:', err));
+        authFetch('/api/assignments/overview')
+            .then(res => res.json())
+            .then((data: AssignmentOverviewProject[]) => {
+                const byId: Record<number, AssignmentOverviewProject> = {};
+                if (Array.isArray(data)) data.forEach(o => { byId[o.projectId] = o; });
+                setAssignmentOverview(byId);
+            })
+            .catch(err => console.error('Failed to fetch assignment overview:', err));
     };
 
     const fetchBuildings = () => {
@@ -482,9 +492,10 @@ export default function ProjectsTab() {
                                 {bProjects.map((project, index) => {
                                     const isDragging = draggingId === project.id;
                                     const isDragOver = dragOverId === project.id;
+                                    const overview = assignmentOverview[project.id];
                                     return (
+                                        <React.Fragment key={project.id}>
                                         <tr
-                                            key={project.id}
                                             draggable
                                             onDragStart={(e) => handleDragStart(e, project.id)}
                                             onDragOver={(e) => handleDragOver(e, project.id)}
@@ -512,6 +523,19 @@ export default function ProjectsTab() {
                                                         <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700" title="Hausaufgabe mit automatischem Test">
                                                             📝 Hausaufgabe
                                                         </span>
+                                                    )}
+                                                    {overview && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setExpandedAssignmentId(expandedAssignmentId === project.id ? null : project.id)}
+                                                            className={`rounded-full px-2 py-0.5 text-[11px] font-bold transition-colors ${overview.submittedCount === overview.studentCount && overview.studentCount > 0
+                                                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                                                : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                                                                }`}
+                                                            title={t.assignmentSubmissions}
+                                                        >
+                                                            📮 {overview.submittedCount}/{overview.studentCount} {t.assignmentStatusSubmitted}
+                                                        </button>
                                                     )}
                                                 </span>
                                             </td>
@@ -568,6 +592,39 @@ export default function ProjectsTab() {
                                                 </button>
                                             </td>
                                         </tr>
+                                        {expandedAssignmentId === project.id && overview && (
+                                            <tr className="border-b border-orange-50 bg-purple-50/40">
+                                                <td colSpan={6} className="px-6 py-4">
+                                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                                        {([true, false] as const).map(flag => {
+                                                            const list = overview.students.filter(s => s.submitted === flag);
+                                                            return (
+                                                                <div key={String(flag)}>
+                                                                    <p className={`mb-2 text-sm font-bold ${flag ? 'text-green-700' : 'text-amber-700'}`}>
+                                                                        {flag ? t.assignmentStatusSubmitted : t.assignmentStatusNotSubmitted} ({list.length})
+                                                                    </p>
+                                                                    {list.length > 0 ? (
+                                                                        <ul className="space-y-1 text-sm text-stone-700">
+                                                                            {list.map(s => (
+                                                                                <li key={s.userId}>
+                                                                                    {s.name || s.username}
+                                                                                    {flag && s.updatedAt && (
+                                                                                        <span className="ml-2 text-xs text-stone-400">{new Date(s.updatedAt + 'Z').toLocaleString('de-DE')}</span>
+                                                                                    )}
+                                                                                </li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    ) : (
+                                                                        <p className="text-sm text-stone-400">–</p>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                        </React.Fragment>
                                     );
                                 })}
                             </React.Fragment>

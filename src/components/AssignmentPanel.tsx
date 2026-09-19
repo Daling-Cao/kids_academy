@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Image as ImageIcon, Link2, Type, Send, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Image as ImageIcon, Link2, Type, Send, CheckCircle2, Clock, RefreshCw } from 'lucide-react';
 import DOMPurify from 'isomorphic-dompurify';
 import { motion } from 'motion/react';
 import type { AssignmentSubmission, AssignmentSubmissionType } from '../types';
@@ -155,9 +155,18 @@ export default function AssignmentPanel({ projectId, instructions, submission, o
             animate={{ opacity: 1, y: 0 }}
             className="mb-12 rounded-3xl border-4 border-purple-200 bg-purple-50/60 p-8 shadow-lg"
         >
-            <div className="mb-6 flex items-center gap-3">
+            <div className="mb-6 flex flex-wrap items-center gap-3">
                 <Send size={28} className="text-purple-600" />
                 <h2 className="text-3xl font-extrabold text-purple-800">{t.assignmentTitle}</h2>
+                <span
+                    className={`ml-auto flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-bold ${submission
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-amber-100 text-amber-700'
+                        }`}
+                >
+                    {submission ? <CheckCircle2 size={16} /> : <Clock size={16} />}
+                    {submission ? t.assignmentStatusSubmitted : t.assignmentStatusNotSubmitted}
+                </span>
             </div>
 
             {instructions && (
@@ -169,9 +178,9 @@ export default function AssignmentPanel({ projectId, instructions, submission, o
 
             {submission && !showForm && (
                 <div className="mb-6 space-y-4">
-                    <div className="flex items-center gap-2 font-bold text-green-700">
-                        <CheckCircle2 size={22} /> {t.assignmentSubmitted}
-                    </div>
+                    <p className="text-sm text-stone-500">
+                        {t.assignmentLastSubmitted}: <span className="font-bold text-stone-700">{new Date(submission.updatedAt + 'Z').toLocaleString('de-DE')}</span>
+                    </p>
                     <div className="rounded-2xl border-2 border-purple-200 bg-white p-5">
                         {renderSubmitted()}
                     </div>

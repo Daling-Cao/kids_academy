@@ -184,6 +184,25 @@ export interface Project {
     quizzes?: Quiz[] | string;
 }
 
+// Teacher overview: one entry per assignment-enabled project.
+export interface AssignmentOverviewStudent {
+    userId: number;
+    username: string;
+    name?: string | null;
+    submitted: boolean;
+    submissionType: AssignmentSubmissionType | null;
+    updatedAt: string | null;
+}
+
+export interface AssignmentOverviewProject {
+    projectId: number;
+    projectTitle: string;
+    buildingName?: string | null;
+    submittedCount: number;
+    studentCount: number;
+    students: AssignmentOverviewStudent[];
+}
+
 export interface Building {
     id: number;
     name: string;
