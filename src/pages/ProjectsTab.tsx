@@ -21,6 +21,7 @@ interface ProjectData {
     homeworkInstructions: string;
     homeworkChecks: HomeworkCheck[];
     assignmentInstructions: string;
+    interactiveWidgetId: number | null;
 }
 
 interface EditingProject extends ProjectData {
@@ -125,6 +126,7 @@ export default function ProjectsTab() {
         homeworkInstructions: '',
         homeworkChecks: [],
         assignmentInstructions: '',
+        interactiveWidgetId: null,
     });
     const closeAddForm = useCallback(() => {
         setShowSaveConfirmation(false);
@@ -184,7 +186,7 @@ export default function ProjectsTab() {
 
         setEditingProject({ ...newProject, id: Number(data.id) });
         setShowAddForm(false);
-        setNewProject({ buildingId: buildings[0]?.id || 1, title: '', description: '', scratchFileUrl: '', scratchProjectId: '', finalScratchFileUrl: '', finalScratchProjectId: '', coverImage: '', tags: [], segments: [], projectType: 'lesson', homeworkInstructions: '', homeworkChecks: [], assignmentInstructions: '' });
+        setNewProject({ buildingId: buildings[0]?.id || 1, title: '', description: '', scratchFileUrl: '', scratchProjectId: '', finalScratchFileUrl: '', finalScratchProjectId: '', coverImage: '', tags: [], segments: [], projectType: 'lesson', homeworkInstructions: '', homeworkChecks: [], assignmentInstructions: '', interactiveWidgetId: null });
         setShowSaveConfirmation(true);
         fetchProjects();
     };
@@ -575,6 +577,7 @@ export default function ProjectsTab() {
                                                             homeworkInstructions: project.homeworkInstructions || '',
                                                             homeworkChecks: project.homeworkChecks || [],
                                                             assignmentInstructions: project.assignmentInstructions || '',
+                                                            interactiveWidgetId: project.interactiveWidgetId ?? null,
                                                         });
                                                         setShowAddForm(false);
                                                     }}
@@ -660,7 +663,7 @@ export default function ProjectsTab() {
                                     </button>
                                     <button
                                         onClick={() => {
-                                            setEditingProject({ id: project.id, buildingId: project.buildingId, title: project.title, description: project.description, scratchFileUrl: project.scratchFileUrl, scratchProjectId: project.scratchProjectId, finalScratchFileUrl: project.finalScratchFileUrl || '', finalScratchProjectId: project.finalScratchProjectId || '', coverImage: project.coverImage, tags: project.tags || [], segments: project.segments || [], projectType: project.projectType || 'lesson', homeworkInstructions: project.homeworkInstructions || '', homeworkChecks: project.homeworkChecks || [], assignmentInstructions: project.assignmentInstructions || '' });
+                                            setEditingProject({ id: project.id, buildingId: project.buildingId, title: project.title, description: project.description, scratchFileUrl: project.scratchFileUrl, scratchProjectId: project.scratchProjectId, finalScratchFileUrl: project.finalScratchFileUrl || '', finalScratchProjectId: project.finalScratchProjectId || '', coverImage: project.coverImage, tags: project.tags || [], segments: project.segments || [], projectType: project.projectType || 'lesson', homeworkInstructions: project.homeworkInstructions || '', homeworkChecks: project.homeworkChecks || [], assignmentInstructions: project.assignmentInstructions || '', interactiveWidgetId: project.interactiveWidgetId ?? null });
                                             setShowAddForm(false);
                                         }}
                                         className="p-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors shadow-sm"

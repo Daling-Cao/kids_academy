@@ -147,6 +147,12 @@ export interface AssignmentSubmission {
     projectTitle?: string;
 }
 
+export interface InteractiveWidget {
+    id: number;
+    name: string;
+    entryFile: string;
+}
+
 export interface Project {
     id: number;
     buildingId: number;
@@ -176,6 +182,11 @@ export interface Project {
     assignmentInstructions?: string;
     // Set by the server for students: their own current hand-in, if any.
     assignmentSubmission?: AssignmentSubmission | null;
+    // Interactive version (an uploaded 'lesson' widget). When present the
+    // classroom opens it by default; the article stays one click away.
+    interactiveWidgetId?: number | null;
+    // Resolved by GET /api/projects/:id; null while the content is locked.
+    interactiveWidget?: InteractiveWidget | null;
     // Only on the student's building listing, for the door badge.
     homeworkSubmitted?: boolean;
     homeworkPassed?: boolean;
@@ -263,4 +274,6 @@ export interface Widget {
     entryFile: string;
     coverImage: string;
     createdAt: string;
+    // 'tool' = student tool library, 'lesson' = interactive lesson version.
+    kind?: 'tool' | 'lesson';
 }
