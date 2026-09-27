@@ -614,6 +614,11 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
     const [tagInput, setTagInput] = useState('');
     const [showPreview, setShowPreview] = useState(false);
     const [openSections, setOpenSections] = useState({ details: true, homework: false, assignment: false, content: false, questions: false });
+    // Scratch fields are optional — only Scratch lessons need them. Until the
+    // teacher toggles it, the block is shown iff the project already has data.
+    const [scratchToggled, setScratchToggled] = useState<boolean | null>(null);
+    const hasScratchData = !!(project.scratchFileUrl || project.scratchProjectId || project.finalScratchFileUrl || project.finalScratchProjectId);
+    const showScratch = scratchToggled ?? hasScratchData;
 
     // react-quill-new can echo a stray onChange for a segment's content field
     // when its controlled `value` prop is updated programmatically (e.g. by a
@@ -916,6 +921,17 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                     />
                 </div>
 
+                <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm font-bold text-stone-700">
+                    <input
+                        type="checkbox"
+                        checked={showScratch}
+                        onChange={(e) => setScratchToggled(e.target.checked)}
+                        className="h-4 w-4 accent-orange-500"
+                    />
+                    🐱 Scratch-Projekt (optional)
+                </label>
+
+                {showScratch && (<>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                     <div>
                         <label className="block text-sm font-medium text-stone-600 mb-1">Scratch File (.sb3) URL</label>
@@ -965,6 +981,7 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                         </div>
                     </div>
                 </div>
+                </>)}
 
                 </div>
                 </CollapsibleSection>
