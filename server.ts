@@ -8,6 +8,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import AdmZip from 'adm-zip';
+import crypto from 'crypto';
 import db from './src/db.ts';
 import {
   HOMEWORK_ALLOWED_EXTENSIONS,
@@ -116,7 +117,9 @@ const upload = multer({
 
 // ─── Auth middleware ────────────────────────────────────────────────
 interface AuthRequest extends Request {
-  user?: { id: number; username: string; role: string; exp?: number };
+  // previewBy: set only on a teacher's "test as student" session — the id of
+  // the teacher who may switch back without logging in again.
+  user?: { id: number; username: string; role: string; exp?: number; previewBy?: number };
 }
 
 function getCookie(req: Request, name: string): string | undefined {
@@ -146,7 +149,7 @@ function authMiddleware(req: AuthRequest, res: Response, next: NextFunction): vo
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: number; username: string; role: string; exp?: number };
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: number; username: string; role: string; exp?: number; previewBy?: number };
     req.user = decoded;
     next();
   } catch {
@@ -353,6 +356,28 @@ function cleanInteractiveWidgetId(value: unknown): number | null {
   return db.prepare('SELECT id FROM widgets WHERE id = ?').get(id) ? id : null;
 }
 
+// Signs a session for `user` and sets it as the auth cookie; returns expiresAt.
+function issueSession(res: Response, user: { id: number; username: string; role: string }, previewBy?: number): number {
+  const claims: Record<string, unknown> = { id: user.id, username: user.username, role: user.role };
+  if (previewBy) claims.previewBy = previewBy;
+  const token = jwt.sign(claims, JWT_SECRET!, { expiresIn: SESSION_DURATION_SECONDS });
+  res.cookie(AUTH_COOKIE_NAME, token, SESSION_COOKIE_OPTIONS);
+  return Date.now() + SESSION_DURATION_SECONDS * 1000;
+}
+
+// Removes throwaway preview students together with everything they created.
+// Rows cascade with the user; files on disk have to be removed explicitly.
+function deletePreviewStudents(onlyId?: number): void {
+  const rows = (onlyId
+    ? db.prepare('SELECT id FROM users WHERE id = ? AND isPreview = 1').all(onlyId)
+    : db.prepare('SELECT id FROM users WHERE isPreview = 1').all()) as { id: number }[];
+  for (const { id } of rows) {
+    deleteHomeworkFilesFor('userId', id);
+    deleteAssignmentFilesFor('userId', id);
+    db.prepare('DELETE FROM users WHERE id = ? AND isPreview = 1').run(id);
+  }
+}
+
 function uploadFilenameFromUrl(url: string): string | null {
   const m = /^\/uploads\/([A-Za-z0-9._-]+)$/.exec(url);
   return m ? m[1] : null;
@@ -440,7 +465,7 @@ function notifyStudentsProjectRelease(projectId: number | string): void {
   if (!project) return;
 
   const content = `📚 Neue Lektion verfügbar: „${project.title}“${project.buildingName ? ` (${project.buildingName})` : ''}`;
-  const students = db.prepare("SELECT id FROM users WHERE role = 'student'").all() as any[];
+  const students = db.prepare("SELECT id FROM users WHERE role = 'student' AND isPreview = 0").all() as any[];
   const insert = db.prepare(
     "INSERT INTO notifications (userId, type, content, refType, refId) VALUES (?, 'new_project', ?, 'project_release', ?)"
   );
@@ -524,7 +549,16 @@ async function startServer() {
     });
   });
 
-  app.post('/api/logout', (_req: Request, res: Response) => {
+  app.post('/api/logout', (req: Request, res: Response) => {
+    // Logging out of a "test as student" session ends the preview: drop the
+    // throwaway account instead of leaving it behind until the next preview.
+    const token = getCookie(req, AUTH_COOKIE_NAME);
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as { id: number; previewBy?: number };
+        if (decoded.previewBy) deletePreviewStudents(decoded.id);
+      } catch {}
+    }
     res.clearCookie(AUTH_COOKIE_NAME, {
       httpOnly: SESSION_COOKIE_OPTIONS.httpOnly,
       sameSite: SESSION_COOKIE_OPTIONS.sameSite,
@@ -532,6 +566,52 @@ async function startServer() {
       path: SESSION_COOKIE_OPTIONS.path,
     });
     res.json({ success: true });
+  });
+
+  // ─── Test as student (teacher preview) ───────────────────────────
+  // A teacher switches into a fresh throwaway student account to test the
+  // student view. Every start creates a new account (so the test begins with
+  // zero progress) and deletes the previous one. The student session carries
+  // `previewBy`, which is the only thing that allows switching back.
+  app.post('/api/preview/start', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const teacherId = req.user!.id;
+    let groupId: number | null = null;
+    if (req.body.groupId !== undefined && req.body.groupId !== null && req.body.groupId !== '') {
+      groupId = Number(req.body.groupId);
+      if (!db.prepare('SELECT 1 FROM student_groups WHERE id = ?').get(groupId)) {
+        return res.status(400).json({ success: false, message: 'Group not found' });
+      }
+    }
+
+    deletePreviewStudents();
+    const username = `vorschau-${crypto.randomBytes(4).toString('hex')}`;
+    // Nobody knows this password, so the account can only be entered through
+    // this route — never through the login form.
+    const unusablePassword = bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 10);
+    const result = db.prepare(
+      "INSERT INTO users (username, password, role, name, groupId, isPreview) VALUES (?, ?, 'student', ?, ?, 1)"
+    ).run(username, unusablePassword, 'Test-Schüler', groupId);
+    const student = { id: Number(result.lastInsertRowid), username, role: 'student' };
+
+    const expiresAt = issueSession(res, student, teacherId);
+    res.json({
+      success: true,
+      user: { ...student, name: 'Test-Schüler', avatar: null, coins: 0, isPreview: true },
+      expiresAt,
+    });
+  });
+
+  app.post('/api/preview/stop', authMiddleware, (req: AuthRequest, res: Response) => {
+    const teacherId = req.user?.previewBy;
+    if (!teacherId) return res.status(400).json({ success: false, message: 'Not a preview session' });
+    const teacher = db.prepare(
+      "SELECT id, username, role, name, avatar, coins FROM users WHERE id = ? AND role = 'teacher'"
+    ).get(teacherId) as any;
+    deletePreviewStudents(req.user!.id);
+    if (!teacher) return res.status(403).json({ success: false, message: 'Teacher account not found' });
+
+    const expiresAt = issueSession(res, teacher);
+    res.json({ success: true, user: { ...teacher, coins: teacher.coins || 0 }, expiresAt });
   });
 
   // ─── File Upload (authenticated) ─────────────────────────────────
@@ -577,6 +657,7 @@ async function startServer() {
     try {
       const user = db.prepare('SELECT id, username, role, name, avatar FROM users WHERE id = ?').get(userId) as any;
       if (user) {
+        if (req.user?.previewBy) user.isPreview = true;
         res.json({ success: true, user, expiresAt: (req.user?.exp || 0) * 1000 });
       } else {
         res.status(404).json({ success: false, message: 'User not found' });
@@ -1326,7 +1407,7 @@ async function startServer() {
       ORDER BY p.buildingId ASC, p.orderIndex ASC
     `).all() as any[];
     const students = db.prepare(
-      "SELECT id, username, name FROM users WHERE role = 'student' ORDER BY username ASC"
+      "SELECT id, username, name FROM users WHERE role = 'student' AND isPreview = 0 ORDER BY username ASC"
     ).all() as any[];
     const subs = db.prepare(
       'SELECT userId, projectId, submissionType, updatedAt FROM assignment_submissions'
@@ -1366,7 +1447,7 @@ async function startServer() {
   // Get all students
   app.get('/api/users', authMiddleware, teacherOnly, (_req: AuthRequest, res: Response) => {
     const users = db.prepare(
-      'SELECT id, username, role, name, avatar, coins, groupId, lastLoginAt, lastPagePath, lastPageAt FROM users WHERE role = ?'
+      'SELECT id, username, role, name, avatar, coins, groupId, lastLoginAt, lastPagePath, lastPageAt FROM users WHERE role = ? AND isPreview = 0'
     ).all('student') as any[];
     users.forEach(u => { u.lastPageLabel = describePagePath(u.lastPagePath); });
     res.json(users);
@@ -1512,7 +1593,7 @@ async function startServer() {
     const groups = db.prepare(`
       SELECT g.id, g.name, COUNT(u.id) AS memberCount
       FROM student_groups g
-      LEFT JOIN users u ON u.groupId = g.id AND u.role = 'student'
+      LEFT JOIN users u ON u.groupId = g.id AND u.role = 'student' AND u.isPreview = 0
       GROUP BY g.id
       ORDER BY g.name COLLATE NOCASE ASC
     `).all();
