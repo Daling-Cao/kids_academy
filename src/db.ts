@@ -315,6 +315,25 @@ if (projectsInfo.length > 0) {
       ALTER TABLE projects ADD COLUMN assignmentInstructions TEXT DEFAULT '';
     `);
   }
+
+  // Interactive version of a lesson: an uploaded widget (HTML/zip) that the
+  // classroom opens by default instead of the article.
+  const hasInteractiveWidgetId = projectsInfo.some(col => col.name === 'interactiveWidgetId');
+  if (!hasInteractiveWidgetId) {
+    db.exec(`
+      ALTER TABLE projects ADD COLUMN interactiveWidgetId INTEGER;
+    `);
+  }
+}
+
+// Migrate widgets table: 'tool' widgets appear in the student tool library,
+// 'lesson' widgets are interactive lesson versions attached to a project and
+// must not be listed there.
+const widgetsInfo = db.pragma('table_info(widgets)') as any[];
+if (widgetsInfo.length > 0 && !widgetsInfo.some(col => col.name === 'kind')) {
+  db.exec(`
+    ALTER TABLE widgets ADD COLUMN kind TEXT NOT NULL DEFAULT 'tool';
+  `);
 }
 
 // Migrate project_segments table: add multi-lang columns

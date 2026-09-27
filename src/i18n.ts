@@ -59,6 +59,10 @@ const translations = {
     awesomeJob: 'Tolle Arbeit! Du hast es dir verdient!',
     classroomNotFound: 'Klassenzimmer nicht gefunden.',
     noSegments: 'Noch keine Abschnitte verfügbar.',
+    viewInteractive: '🎮 Interaktiv',
+    viewArticle: '📖 Artikel & Quiz',
+    interactiveFinishHint: 'Fertig mit der interaktiven Lektion? Im Artikel findest du das Quiz und schließt die Lektion ab.',
+    interactiveToArticle: 'Zum Artikel & Quiz →',
     generateTestData: 'Testdaten generieren',
 
     // Homework (Hausaufgabe)

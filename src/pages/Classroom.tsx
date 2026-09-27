@@ -27,6 +27,8 @@ export default function Classroom({ user }: { user: User }) {
   const [homeworkStatus, setHomeworkStatus] = useState<HomeworkStatus | null>(null);
   const [assignmentSubmission, setAssignmentSubmission] = useState<AssignmentSubmission | null>(null);
   const [activeWidget, setActiveWidget] = useState<{ id: number; name: string; entryFile: string } | null>(null);
+  // Projects with an interactive version open it by default.
+  const [view, setView] = useState<'interactive' | 'article'>('article');
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,6 +47,7 @@ export default function Classroom({ user }: { user: User }) {
     ])
       .then(([projectData, progressData]) => {
         setProject(projectData);
+        setView(projectData?.interactiveWidget ? 'interactive' : 'article');
         setHomeworkStatus(projectData?.homeworkStatus || null);
         setAssignmentSubmission(projectData?.assignmentSubmission || null);
         if (progressData?.state === 'completed') {
@@ -209,6 +212,8 @@ export default function Classroom({ user }: { user: User }) {
   const isHomework = project.projectType === 'homework';
   // The server already withholds the article; this only mirrors that state.
   const articleLocked = isHomework && !homeworkStatus?.submitted;
+  const interactive = project.interactiveWidget || null;
+  const showInteractive = !!interactive && view === 'interactive';
 
   return (
     <>
@@ -234,7 +239,7 @@ export default function Classroom({ user }: { user: User }) {
         )}
       </AnimatePresence>
 
-      <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden border-4 border-orange-100">
+      <div className={`${interactive ? 'max-w-7xl' : 'max-w-4xl'} mx-auto bg-white rounded-3xl shadow-xl overflow-hidden border-4 border-orange-100`}>
         <div className="bg-orange-400 p-6 flex items-center justify-between">
           <button
             onClick={() => navigate(`/building/${project.buildingId}`)}
@@ -253,7 +258,50 @@ export default function Classroom({ user }: { user: User }) {
           <div className="w-24"></div>
         </div>
 
-        <div className="p-8">
+        {interactive && (
+          <div className="flex justify-center gap-2 border-b-2 border-orange-100 bg-orange-50/60 px-4 py-3" role="tablist">
+            {(['interactive', 'article'] as const).map(mode => (
+              <button
+                key={mode}
+                role="tab"
+                aria-selected={view === mode}
+                onClick={() => setView(mode)}
+                className={`rounded-xl px-5 py-2 font-bold transition-colors ${view === mode
+                  ? 'bg-orange-500 text-white shadow-md'
+                  : 'bg-white text-stone-600 border-2 border-orange-100 hover:border-orange-300'
+                  }`}
+              >
+                {mode === 'interactive' ? t.viewInteractive : t.viewArticle}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {showInteractive && (
+          <div>
+            {/* Sandboxed like every widget: scripts run, but no access to the app origin or /api/* */}
+            <iframe
+              key={interactive.id}
+              src={`/widget-files/${interactive.id}/${interactive.entryFile || 'index.html'}`}
+              title={interactive.name}
+              className="block w-full border-0"
+              style={{ height: 'max(640px, calc(100vh - 220px))' }}
+              allow="fullscreen"
+              sandbox="allow-scripts allow-forms allow-downloads allow-modals"
+            />
+            <div className="flex flex-wrap items-center justify-between gap-4 border-t-2 border-orange-100 bg-orange-50/60 px-6 py-4">
+              <p className="text-stone-600 font-medium">{t.interactiveFinishHint}</p>
+              <button
+                onClick={() => { setView('article'); window.scrollTo({ top: 0 }); }}
+                className="rounded-xl bg-blue-500 px-5 py-2 font-bold text-white shadow-md hover:bg-blue-600"
+              >
+                {t.interactiveToArticle}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className={`p-8 ${interactive ? 'max-w-4xl mx-auto' : ''} ${showInteractive ? 'hidden' : ''}`}>
           {project.description && (
             <p className="text-stone-600 text-lg leading-relaxed mb-8 whitespace-pre-line">
               {project.description}

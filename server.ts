@@ -345,6 +345,14 @@ function cleanAssignmentInstructions(html: string | null | undefined): string {
   return hasAssignmentInstructions(clean) ? clean : '';
 }
 
+// Only accept a reference to a widget that actually exists; anything else
+// (empty, garbage, a deleted widget) means "no interactive version".
+function cleanInteractiveWidgetId(value: unknown): number | null {
+  const id = Number(value);
+  if (!Number.isInteger(id) || id <= 0) return null;
+  return db.prepare('SELECT id FROM widgets WHERE id = ?').get(id) ? id : null;
+}
+
 function uploadFilenameFromUrl(url: string): string | null {
   const m = /^\/uploads\/([A-Za-z0-9._-]+)$/.exec(url);
   return m ? m[1] : null;
@@ -877,6 +885,14 @@ async function startServer() {
          }
       });
       project.segments = segments;
+
+      // The interactive version is lesson content too, so it stays closed
+      // exactly as long as the article does.
+      const interactiveWidget = project.interactiveWidgetId
+        ? db.prepare('SELECT id, name, entryFile FROM widgets WHERE id = ?').get(project.interactiveWidgetId)
+        : null;
+      project.interactiveWidget = unlocked ? interactiveWidget || null : null;
+      if (!unlocked) project.interactiveWidgetId = null;
 
       if (req.user && req.user.role !== 'teacher') {
         project.homeworkStatus = project.projectType === 'homework'
@@ -1650,14 +1666,14 @@ async function startServer() {
 
   // Add new project
   app.post('/api/projects', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
-    const { buildingId, title, titleZh = '', titleDe = '', description, descriptionZh = '', descriptionDe = '', scratchFileUrl, scratchProjectId, finalScratchFileUrl = '', finalScratchProjectId = '', coverImage, tags, segments, projectType, homeworkInstructions = '', homeworkChecks, assignmentInstructions = '' } = req.body;
+    const { buildingId, title, titleZh = '', titleDe = '', description, descriptionZh = '', descriptionDe = '', scratchFileUrl, scratchProjectId, finalScratchFileUrl = '', finalScratchProjectId = '', coverImage, tags, segments, projectType, homeworkInstructions = '', homeworkChecks, assignmentInstructions = '', interactiveWidgetId } = req.body;
     const maxOrder = db.prepare('SELECT MAX(orderIndex) as max FROM projects WHERE buildingId = ?').get(buildingId) as { max: number };
     const orderIndex = (maxOrder.max || 0) + 1;
 
     const type = projectType === 'homework' ? 'homework' : 'lesson';
 
-    const result = db.prepare('INSERT INTO projects (buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, isLocked, orderIndex, tags, projectType, homeworkInstructions, homeworkChecks, assignmentInstructions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, 1, orderIndex, JSON.stringify(tags || []), type, sanitizeHtml(homeworkInstructions || ''), JSON.stringify(normalizeChecks(homeworkChecks)), cleanAssignmentInstructions(assignmentInstructions));
+    const result = db.prepare('INSERT INTO projects (buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, isLocked, orderIndex, tags, projectType, homeworkInstructions, homeworkChecks, assignmentInstructions, interactiveWidgetId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, 1, orderIndex, JSON.stringify(tags || []), type, sanitizeHtml(homeworkInstructions || ''), JSON.stringify(normalizeChecks(homeworkChecks)), cleanAssignmentInstructions(assignmentInstructions), cleanInteractiveWidgetId(interactiveWidgetId));
 
     const projectId = result.lastInsertRowid;
 
@@ -1708,12 +1724,12 @@ async function startServer() {
   // Update project
   app.put('/api/projects/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
     const { id } = req.params;
-    const { buildingId, title, titleZh = '', titleDe = '', description, descriptionZh = '', descriptionDe = '', scratchFileUrl, scratchProjectId, finalScratchFileUrl = '', finalScratchProjectId = '', coverImage, tags, segments, projectType, homeworkInstructions = '', homeworkChecks, assignmentInstructions = '' } = req.body;
+    const { buildingId, title, titleZh = '', titleDe = '', description, descriptionZh = '', descriptionDe = '', scratchFileUrl, scratchProjectId, finalScratchFileUrl = '', finalScratchProjectId = '', coverImage, tags, segments, projectType, homeworkInstructions = '', homeworkChecks, assignmentInstructions = '', interactiveWidgetId } = req.body;
 
     const type = projectType === 'homework' ? 'homework' : 'lesson';
 
-    db.prepare('UPDATE projects SET buildingId = ?, title = ?, titleZh = ?, titleDe = ?, description = ?, descriptionZh = ?, descriptionDe = ?, scratchFileUrl = ?, scratchProjectId = ?, finalScratchFileUrl = ?, finalScratchProjectId = ?, coverImage = ?, tags = ?, projectType = ?, homeworkInstructions = ?, homeworkChecks = ?, assignmentInstructions = ? WHERE id = ?')
-      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, JSON.stringify(tags || []), type, sanitizeHtml(homeworkInstructions || ''), JSON.stringify(normalizeChecks(homeworkChecks)), cleanAssignmentInstructions(assignmentInstructions), id);
+    db.prepare('UPDATE projects SET buildingId = ?, title = ?, titleZh = ?, titleDe = ?, description = ?, descriptionZh = ?, descriptionDe = ?, scratchFileUrl = ?, scratchProjectId = ?, finalScratchFileUrl = ?, finalScratchProjectId = ?, coverImage = ?, tags = ?, projectType = ?, homeworkInstructions = ?, homeworkChecks = ?, assignmentInstructions = ?, interactiveWidgetId = ? WHERE id = ?')
+      .run(buildingId, title, titleZh, titleDe, description, descriptionZh, descriptionDe, scratchFileUrl, scratchProjectId, finalScratchFileUrl, finalScratchProjectId, coverImage, JSON.stringify(tags || []), type, sanitizeHtml(homeworkInstructions || ''), JSON.stringify(normalizeChecks(homeworkChecks)), cleanAssignmentInstructions(assignmentInstructions), cleanInteractiveWidgetId(interactiveWidgetId), id);
 
     if (Array.isArray(segments)) {
       const existingSegs = (db.prepare('SELECT id FROM project_segments WHERE projectId = ?').all(id) as any[]).map(s => s.id);
@@ -1920,9 +1936,13 @@ async function startServer() {
 
   // ─── Widget Routes ───────────────────────────────────────────────
 
-  // List all widgets (students and teachers can browse)
-  app.get('/api/widgets', authMiddleware, (_req: AuthRequest, res: Response) => {
-    const widgets = db.prepare('SELECT * FROM widgets ORDER BY createdAt DESC').all();
+  // List widgets (students and teachers can browse the tool library).
+  // ?kind=lesson lists the interactive lesson versions instead — teachers only,
+  // students reach those through their project.
+  app.get('/api/widgets', authMiddleware, (req: AuthRequest, res: Response) => {
+    const kind = req.query.kind === 'lesson' ? 'lesson' : 'tool';
+    if (kind === 'lesson' && req.user?.role !== 'teacher') return res.status(403).json({ error: 'Forbidden' });
+    const widgets = db.prepare('SELECT * FROM widgets WHERE kind = ? ORDER BY createdAt DESC').all(kind);
     res.json(widgets);
   });
 
@@ -1937,10 +1957,11 @@ async function startServer() {
   app.post('/api/widgets', authMiddleware, teacherOnly, widgetUpload.single('file'), (req: AuthRequest, res: Response) => {
     const { name, description } = req.body;
     if (!name || !req.file) return res.status(400).json({ error: 'name and file are required' });
+    const kind = req.body.kind === 'lesson' ? 'lesson' : 'tool';
 
     const widgetRecord = db.prepare(
-      'INSERT INTO widgets (name, description, entryFile) VALUES (?, ?, ?)'
-    ).run(name.trim(), (description || '').trim(), 'index.html');
+      'INSERT INTO widgets (name, description, entryFile, kind) VALUES (?, ?, ?, ?)'
+    ).run(name.trim(), (description || '').trim(), 'index.html', kind);
     const widgetId = widgetRecord.lastInsertRowid;
 
     const widgetFolder = path.join(widgetsDir, String(widgetId));
@@ -2021,6 +2042,7 @@ async function startServer() {
 
     const widgetFolder = path.join(widgetsDir, id);
     try { fs.rmSync(widgetFolder, { recursive: true, force: true }); } catch {}
+    db.prepare('UPDATE projects SET interactiveWidgetId = NULL WHERE interactiveWidgetId = ?').run(id);
     db.prepare('DELETE FROM widgets WHERE id = ?').run(id);
     res.json({ success: true });
   });

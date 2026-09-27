@@ -10,6 +10,7 @@ KidsAcademy is a modern, gamified learning platform designed for kids. It combin
 - **✅ Multi-select Quizzes**: Advanced quiz system supporting multiple correct answers.
 - **🖼️ Image-based Quizzes**: Teachers can add optional images to question prompts and individual answer choices. Answers can use text, an image, or both, and are supported in teacher previews and the student classroom.
 - **📝 Homework Projects**: A project can be marked as *homework*. The article stays locked until the student uploads their own Scratch (`.sb3`) or code file. Handing something in — whatever the automatic test result — opens the article and earns an extra BlockCoin; the test itself is feedback, not a gate. See [Homework projects](#-homework-projects).
+- **🎮 Interactive Lesson Versions**: A project can carry an uploaded interactive version (HTML page or zip). The classroom opens it by default; the article with quizzes stays one click away. See [Interactive lesson versions](#-interactive-lesson-versions).
 - **💬 Teacher-Student Messaging**: In-app communication with reply capabilities.
 - **🪙 Reward & Rank System**: Earn "BlockCoins" by completing projects and level up your rank.
 - **👨‍🏫 Teacher Dashboard**: Manage students, projects, buildings, and messages.
@@ -83,6 +84,18 @@ Hand-ins are stored in `homework-uploads/` (outside the public `uploads/` tree) 
 - Two files are kept per student and project: the newest hand-in and the newest *passing* one. Superseded attempts keep their result in the database (the teacher still sees the per-check outcome) but their file is deleted; the teacher UI shows "Durch neuere Abgabe ersetzt" instead of a download link.
 - A student cannot hand in the same project twice within five seconds.
 - Deleting a project or a student also deletes their homework files from disk.
+
+## 🎮 Interactive lesson versions
+
+Any project can have an interactive version next to its article (project editor → *🎮 Interaktive Version*):
+
+1. The teacher uploads a `.zip` (a folder with `index.html` plus its CSS/JS/images) or a single `.html` file, or picks one uploaded earlier.
+2. In the classroom the interactive version is shown **by default**. A switch at the top leads to *Artikel & Quiz*, where the quizzes and the completion button live — the interactive page runs sandboxed and cannot report progress itself.
+3. For homework projects the interactive version is withheld by the server exactly like the article, until something has been handed in.
+
+Interactive versions are stored as widgets of kind `lesson` (`widgets.kind`), so they are served from the same sandboxed `/widget-files` tree as the tool library but are not listed in it. `projects.interactiveWidgetId` points to the attached one; deleting the widget detaches it.
+
+Because the sandbox has no same-origin access, an interactive page must not rely on `localStorage`/cookies, on reading the parent page, or on opening popups (`target="_blank"` links do nothing).
 
 ## 🚢 Deployment
 

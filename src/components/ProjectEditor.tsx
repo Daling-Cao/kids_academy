@@ -10,6 +10,7 @@ import 'quill-table-up/index.css';
 import ImageUpload from '../components/ImageUpload';
 import ProjectPreview from './ProjectPreview';
 import HomeworkChecksEditor from './HomeworkChecksEditor';
+import InteractiveVersionEditor from './InteractiveVersionEditor';
 import { authFetch } from '../App';
 import { uploadFile } from '../lib/upload';
 import type { Building, Quiz, ProjectSegment, Widget, HomeworkCheck, ProjectType } from '../types';
@@ -570,6 +571,7 @@ interface ProjectData {
     homeworkInstructions?: string;
     homeworkChecks?: HomeworkCheck[];
     assignmentInstructions?: string;
+    interactiveWidgetId?: number | null;
 }
 
 interface ProjectEditorProps {
@@ -616,7 +618,7 @@ function CollapsibleSection({ id, title, description, isOpen, onToggle, children
 export default function ProjectEditor({ project, setProject, onSubmit, onCancel, title, buildings, formId }: ProjectEditorProps) {
     const [tagInput, setTagInput] = useState('');
     const [showPreview, setShowPreview] = useState(false);
-    const [openSections, setOpenSections] = useState({ details: true, homework: false, assignment: false, content: false, questions: false });
+    const [openSections, setOpenSections] = useState({ details: true, homework: false, assignment: false, interactive: false, content: false, questions: false });
     // Scratch fields are optional — only Scratch lessons need them. Until the
     // teacher toggles it, the block is shown iff the project already has data.
     const [scratchToggled, setScratchToggled] = useState<boolean | null>(null);
@@ -1056,6 +1058,20 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                             />
                         </div>
                     </div>
+                </CollapsibleSection>
+
+                <CollapsibleSection
+                    id="project-interactive-section"
+                    title={`🎮 Interaktive Version${project.interactiveWidgetId ? ' ✓' : ''}`}
+                    description="Hochgeladene interaktive Lektion — wird im Klassenzimmer standardmäßig geöffnet"
+                    isOpen={openSections.interactive}
+                    onToggle={() => toggleSection('interactive')}
+                >
+                    <InteractiveVersionEditor
+                        widgetId={project.interactiveWidgetId}
+                        onChange={(id) => setProject({ ...projectRef.current, interactiveWidgetId: id })}
+                        projectTitle={project.title}
+                    />
                 </CollapsibleSection>
 
                 <CollapsibleSection
