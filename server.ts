@@ -725,14 +725,29 @@ async function startServer() {
 
   // ─── Student Routes (authenticated) ──────────────────────────────
 
+  // A building is visible unless the student's own setting hides it, or —
+  // without an own setting — their group's setting does.
+  const isBuildingVisibleTo = (userId: string | number, buildingId: string | number) => {
+    const row = db.prepare(`
+      SELECT COALESCE(ubv.isVisible, gbv.isVisible, 1) AS isVisible
+      FROM users u
+      LEFT JOIN user_building_visibility ubv ON ubv.userId = u.id AND ubv.buildingId = ?
+      LEFT JOIN group_building_visibility gbv ON gbv.groupId = u.groupId AND gbv.buildingId = ?
+      WHERE u.id = ?
+    `).get(buildingId, buildingId, userId) as { isVisible: number } | undefined;
+    return !row || row.isVisible === 1;
+  };
+
   // Get visible buildings for a student
   app.get('/api/student/buildings/:userId', authMiddleware, studentSelfOnly, (req: AuthRequest, res: Response) => {
     const { userId } = req.params;
     const buildings = db.prepare(`
-      SELECT b.* 
+      SELECT b.*
       FROM buildings b
-      LEFT JOIN user_building_visibility ubv ON b.id = ubv.buildingId AND ubv.userId = ?
-      WHERE ubv.isVisible IS NULL OR ubv.isVisible = 1
+      LEFT JOIN users u ON u.id = ?
+      LEFT JOIN user_building_visibility ubv ON b.id = ubv.buildingId AND ubv.userId = u.id
+      LEFT JOIN group_building_visibility gbv ON b.id = gbv.buildingId AND gbv.groupId = u.groupId
+      WHERE COALESCE(ubv.isVisible, gbv.isVisible, 1) = 1
       ORDER BY b.orderIndex ASC
     `).all(userId);
     res.json(buildings);
@@ -741,6 +756,9 @@ async function startServer() {
   // Get student projects with progress for a specific building
   app.get('/api/student/buildings/:buildingId/projects/:userId', authMiddleware, studentSelfOnly, (req: AuthRequest, res: Response) => {
     const { buildingId, userId } = req.params;
+    if (!isBuildingVisibleTo(userId, buildingId)) {
+      return res.status(403).json({ error: 'Building not available' });
+    }
     const projects = db.prepare('SELECT * FROM projects WHERE buildingId = ? ORDER BY orderIndex ASC').all(buildingId) as any[];
     // Heal any project whose segments are all done but whose project state lags behind.
     projects.forEach(p => syncProjectCompletion(userId, p.id));
@@ -1348,7 +1366,7 @@ async function startServer() {
   // Get all students
   app.get('/api/users', authMiddleware, teacherOnly, (_req: AuthRequest, res: Response) => {
     const users = db.prepare(
-      'SELECT id, username, role, name, avatar, coins, lastLoginAt, lastPagePath, lastPageAt FROM users WHERE role = ?'
+      'SELECT id, username, role, name, avatar, coins, groupId, lastLoginAt, lastPagePath, lastPageAt FROM users WHERE role = ?'
     ).all('student') as any[];
     users.forEach(u => { u.lastPageLabel = describePagePath(u.lastPagePath); });
     res.json(users);
@@ -1453,12 +1471,105 @@ async function startServer() {
   app.get('/api/users/:id/buildings', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const buildings = db.prepare(`
-      SELECT b.*, COALESCE(ubv.isVisible, 1) as isVisible
+      SELECT b.*,
+        COALESCE(ubv.isVisible, gbv.isVisible, 1) AS isVisible,
+        gbv.isVisible AS groupVisible,
+        ubv.isVisible IS NOT NULL AS isOverride
       FROM buildings b
-      LEFT JOIN user_building_visibility ubv ON b.id = ubv.buildingId AND ubv.userId = ?
+      LEFT JOIN users u ON u.id = ?
+      LEFT JOIN user_building_visibility ubv ON b.id = ubv.buildingId AND ubv.userId = u.id
+      LEFT JOIN group_building_visibility gbv ON b.id = gbv.buildingId AND gbv.groupId = u.groupId
       ORDER BY b.orderIndex ASC
     `).all(id);
     res.json(buildings);
+  });
+
+  // Drop a student's own building setting so their group's setting applies again (Teacher)
+  app.delete('/api/users/:id/buildings/:buildingId', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id, buildingId } = req.params;
+    db.prepare('DELETE FROM user_building_visibility WHERE userId = ? AND buildingId = ?').run(id, buildingId);
+    res.json({ success: true });
+  });
+
+  // Move a student into a group, or out of all groups with groupId = null (Teacher).
+  // Their own building settings are cleared so the new group's settings apply.
+  app.put('/api/users/:id/group', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    const groupId = req.body.groupId == null || req.body.groupId === '' ? null : Number(req.body.groupId);
+    if (groupId !== null && !db.prepare('SELECT 1 FROM student_groups WHERE id = ?').get(groupId)) {
+      return res.status(400).json({ success: false, message: 'Group not found' });
+    }
+    db.transaction(() => {
+      db.prepare('UPDATE users SET groupId = ? WHERE id = ? AND role = ?').run(groupId, id, 'student');
+      db.prepare('DELETE FROM user_building_visibility WHERE userId = ?').run(id);
+    })();
+    res.json({ success: true });
+  });
+
+  // ─── Student Groups (Teacher) ────────────────────────────────────
+
+  app.get('/api/groups', authMiddleware, teacherOnly, (_req: AuthRequest, res: Response) => {
+    const groups = db.prepare(`
+      SELECT g.id, g.name, COUNT(u.id) AS memberCount
+      FROM student_groups g
+      LEFT JOIN users u ON u.groupId = g.id AND u.role = 'student'
+      GROUP BY g.id
+      ORDER BY g.name COLLATE NOCASE ASC
+    `).all();
+    res.json(groups);
+  });
+
+  app.post('/api/groups', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const name = String(req.body.name || '').trim();
+    if (!name) return res.status(400).json({ success: false, message: 'Name is required' });
+    const result = db.prepare('INSERT INTO student_groups (name) VALUES (?)').run(name);
+    res.json({ success: true, id: result.lastInsertRowid });
+  });
+
+  app.put('/api/groups/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const name = String(req.body.name || '').trim();
+    if (!name) return res.status(400).json({ success: false, message: 'Name is required' });
+    db.prepare('UPDATE student_groups SET name = ? WHERE id = ?').run(name, req.params.id);
+    res.json({ success: true });
+  });
+
+  // Members fall back to "no group"; the group's building settings go with it.
+  app.delete('/api/groups/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    db.transaction(() => {
+      db.prepare('UPDATE users SET groupId = NULL WHERE groupId = ?').run(id);
+      db.prepare('DELETE FROM group_building_visibility WHERE groupId = ?').run(id);
+      db.prepare('DELETE FROM student_groups WHERE id = ?').run(id);
+    })();
+    res.json({ success: true });
+  });
+
+  app.get('/api/groups/:id/buildings', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const buildings = db.prepare(`
+      SELECT b.*, COALESCE(gbv.isVisible, 1) AS isVisible
+      FROM buildings b
+      LEFT JOIN group_building_visibility gbv ON b.id = gbv.buildingId AND gbv.groupId = ?
+      ORDER BY b.orderIndex ASC
+    `).all(req.params.id);
+    res.json(buildings);
+  });
+
+  // Show/hide a building for the whole group. Members' own settings for this
+  // building are cleared, so the change reaches every member.
+  app.put('/api/groups/:id/buildings/:buildingId', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const { id, buildingId } = req.params;
+    const isVisible = req.body.isVisible ? 1 : 0;
+    db.transaction(() => {
+      db.prepare(`
+        INSERT INTO group_building_visibility (groupId, buildingId, isVisible) VALUES (?, ?, ?)
+        ON CONFLICT(groupId, buildingId) DO UPDATE SET isVisible = excluded.isVisible
+      `).run(id, buildingId, isVisible);
+      db.prepare(`
+        DELETE FROM user_building_visibility
+        WHERE buildingId = ? AND userId IN (SELECT id FROM users WHERE groupId = ?)
+      `).run(buildingId, id);
+    })();
+    res.json({ success: true });
   });
 
   // Update building visibility for a student (Teacher)
@@ -1502,6 +1613,7 @@ async function startServer() {
     // Cascade delete: projects and their progress are automatically deleted by FK ON DELETE CASCADE
     // Also clean up building visibility records
     db.prepare('DELETE FROM user_building_visibility WHERE buildingId = ?').run(id);
+    db.prepare('DELETE FROM group_building_visibility WHERE buildingId = ?').run(id);
     db.prepare('DELETE FROM buildings WHERE id = ?').run(id);
     res.json({ success: true });
   });

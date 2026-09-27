@@ -7,6 +7,7 @@ export interface User {
     name?: string;
     avatar?: string;
     coins?: number;
+    groupId?: number | null;
     lastLoginAt?: string | null;
     lastPagePath?: string | null;
     lastPageAt?: string | null;
@@ -224,6 +225,16 @@ export interface Building {
 
 export interface BuildingWithVisibility extends Building {
     isVisible: boolean | number;
+    // Only on a student's list: the group's setting (null = none / no group)
+    // and whether the student has their own setting overriding it.
+    groupVisible?: number | null;
+    isOverride?: number;
+}
+
+export interface StudentGroup {
+    id: number;
+    name: string;
+    memberCount: number;
 }
 
 export interface UserProgress {

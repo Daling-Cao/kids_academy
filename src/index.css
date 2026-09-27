@@ -109,3 +109,6 @@
   transform: translateY(-1px);
   box-shadow: 0 4px 14px rgba(249, 115, 22, 0.25);
 }
+
+/* Editor in "fill" mode: toolbar pinned, only the text area scrolls */
+.ql-fill .ql-container { flex: 1; min-height: 0; height: auto; }

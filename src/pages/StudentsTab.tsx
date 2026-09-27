@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Save, X, Users, Lock, Unlock, CheckCircle, PlayCircle, Eye, EyeOff, Building2, BookOpen, KeyRound, Clock, MapPin, FileUp, Download, XCircle, Send } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, Users, Lock, Unlock, CheckCircle, PlayCircle, Eye, EyeOff, Building2, BookOpen, KeyRound, Clock, MapPin, FileUp, Download, XCircle, Send, RotateCcw } from 'lucide-react';
 import DOMPurify from 'isomorphic-dompurify';
 import { authFetch } from '../App';
-import type { User, Building, StudentProgress, BuildingWithVisibility, HomeworkSubmission, AssignmentSubmission, AssignmentOverviewProject } from '../types';
+import type { User, Building, StudentProgress, BuildingWithVisibility, StudentGroup, HomeworkSubmission, AssignmentSubmission, AssignmentOverviewProject } from '../types';
 import { useI18n } from '../i18n';
+import GroupsPanel from '../components/GroupsPanel';
 
 export default function StudentsTab() {
     const { t } = useI18n();
@@ -17,10 +18,44 @@ export default function StudentsTab() {
     const [assignmentData, setAssignmentData] = useState<AssignmentSubmission[]>([]);
     const [assignmentOverview, setAssignmentOverview] = useState<AssignmentOverviewProject[]>([]);
     const [newStudent, setNewStudent] = useState({ username: '', password: '' });
+    const [groups, setGroups] = useState<StudentGroup[]>([]);
+    // Which students the list shows: everyone, one group, or those without a group.
+    const [groupFilter, setGroupFilter] = useState<'all' | 'none' | number>('all');
+    const [managingGroups, setManagingGroups] = useState(false);
 
     useEffect(() => {
         fetchStudents();
+        fetchGroups();
     }, []);
+
+    const fetchGroups = () => {
+        authFetch('/api/groups')
+            .then(res => res.json())
+            .then(data => setGroups(Array.isArray(data) ? data : []))
+            .catch(err => console.error('Failed to fetch groups:', err));
+    };
+
+    const visibleStudents = students.filter(s =>
+        groupFilter === 'all' ? true
+            : groupFilter === 'none' ? !s.groupId
+                : s.groupId === groupFilter
+    );
+
+    const handleChangeGroup = async (student: User, groupId: number | null) => {
+        await authFetch(`/api/users/${student.id}/group`, {
+            method: 'PUT',
+            body: JSON.stringify({ groupId }),
+        });
+        setSelectedStudent({ ...student, groupId });
+        fetchStudents();
+        fetchGroups();
+        fetchStudentBuildings(student.id);
+    };
+
+    const handleResetBuildingVisibility = async (studentId: number, buildingId: number) => {
+        await authFetch(`/api/users/${studentId}/buildings/${buildingId}`, { method: 'DELETE' });
+        fetchStudentBuildings(studentId);
+    };
 
     const fetchStudents = () => {
         authFetch('/api/users')
@@ -163,6 +198,14 @@ export default function StudentsTab() {
             <div className="lg:col-span-1 bg-white rounded-2xl shadow-lg border-2 border-orange-100 overflow-hidden flex flex-col h-[calc(100vh-200px)]">
                 <div className="p-4 border-b-2 border-orange-100 flex justify-between items-center bg-orange-50">
                     <h2 className="text-xl font-bold text-orange-800">{t.studentList}</h2>
+                    <div className="flex gap-2">
+                    <button
+                        onClick={() => { setManagingGroups(true); setSelectedStudent(null); }}
+                        className={`p-2 rounded-lg transition-colors ${managingGroups ? 'bg-orange-500 text-white' : 'bg-white text-orange-600 border border-orange-200 hover:bg-orange-100'}`}
+                        title={t.manageGroups}
+                    >
+                        <Users size={20} />
+                    </button>
                     <button
                         onClick={() => setShowAddForm(!showAddForm)}
                         className="p-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
@@ -170,7 +213,30 @@ export default function StudentsTab() {
                     >
                         <Plus size={20} />
                     </button>
+                    </div>
                 </div>
+
+                {groups.length > 0 && (
+                    <div className="px-4 pt-3 flex flex-wrap gap-1.5">
+                        {[
+                            { key: 'all' as const, label: t.allStudents },
+                            ...groups.map(g => ({ key: g.id, label: g.name })),
+                            { key: 'none' as const, label: t.noGroup },
+                        ].map(({ key, label }) => (
+                            <button
+                                key={String(key)}
+                                type="button"
+                                onClick={() => setGroupFilter(key)}
+                                className={`px-2.5 py-1 rounded-full text-xs font-bold border transition-colors ${groupFilter === key
+                                    ? 'bg-orange-500 border-orange-500 text-white'
+                                    : 'bg-white border-orange-200 text-orange-700 hover:bg-orange-100'
+                                    }`}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+                )}
 
                 <div className="overflow-y-auto flex-grow p-4 space-y-3">
                     {showAddForm && (
@@ -198,7 +264,7 @@ export default function StudentsTab() {
                         </form>
                     )}
 
-                    {students.map(student => (
+                    {visibleStudents.map(student => (
                         <div
                             key={student.id}
                             className={`p-3 rounded-xl border-2 transition-colors cursor-pointer flex justify-between items-center ${selectedStudent?.id === student.id
@@ -206,6 +272,7 @@ export default function StudentsTab() {
                                     : 'border-transparent hover:border-orange-200 bg-stone-50'
                                 }`}
                             onClick={() => {
+                                setManagingGroups(false);
                                 setSelectedStudent(student);
                                 fetchStudentProgress(student.id);
                                 fetchStudentBuildings(student.id);
@@ -248,6 +315,11 @@ export default function StudentsTab() {
                                         <div>
                                             <div className="font-bold text-stone-700">{student.name || student.username}</div>
                                             {student.name && <div className="text-xs text-stone-500">@{student.username}</div>}
+                                            {student.groupId && groups.some(g => g.id === student.groupId) && (
+                                                <span className="inline-block mt-0.5 text-[11px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                                                    {groups.find(g => g.id === student.groupId)?.name}
+                                                </span>
+                                            )}
                                             <div className="text-xs text-stone-400">
                                                 {student.lastLoginAt
                                                     ? `${t.lastLogin}: ${new Date(student.lastLoginAt + 'Z').toLocaleDateString()}`
@@ -280,7 +352,7 @@ export default function StudentsTab() {
                             )}
                         </div>
                     ))}
-                    {students.length === 0 && !showAddForm && (
+                    {visibleStudents.length === 0 && !showAddForm && (
                         <div className="text-center text-stone-400 py-8">{t.noStudentsYet}</div>
                     )}
                 </div>
@@ -288,7 +360,13 @@ export default function StudentsTab() {
 
             {/* Student Progress */}
             <div className="lg:col-span-2 bg-white rounded-2xl shadow-lg border-2 border-orange-100 overflow-hidden flex flex-col h-[calc(100vh-200px)]">
-                {selectedStudent ? (
+                {managingGroups ? (
+                    <GroupsPanel
+                        groups={groups}
+                        students={students}
+                        onChanged={() => { fetchGroups(); fetchStudents(); }}
+                    />
+                ) : selectedStudent ? (
                     <>
                         <div className="p-6 border-b-2 border-orange-100 bg-orange-50">
                             <h2 className="text-2xl font-bold text-orange-800">
@@ -315,6 +393,18 @@ export default function StudentsTab() {
                                     </span>
                                 </span>
                             </div>
+                            <label className="mt-3 flex flex-wrap items-center gap-2 text-sm text-stone-600" title={t.groupChangeHint}>
+                                <Users size={14} className="text-orange-500" />
+                                {t.group}:
+                                <select
+                                    value={selectedStudent.groupId ?? ''}
+                                    onChange={e => handleChangeGroup(selectedStudent, e.target.value ? Number(e.target.value) : null)}
+                                    className="px-2 py-1 rounded-lg border border-orange-200 bg-white font-medium focus:border-orange-400 focus:outline-none"
+                                >
+                                    <option value="">{t.noGroup}</option>
+                                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                                </select>
+                            </label>
                         </div>
                         <div className="overflow-y-auto flex-grow p-6 space-y-8">
 
@@ -366,7 +456,24 @@ export default function StudentsTab() {
                                     {buildingsData.map(building => (
                                         <div key={building.id} className={`p-4 rounded-xl border-2 flex items-center justify-between transition-colors ${building.isVisible ? 'border-orange-200 bg-white' : 'border-stone-200 bg-stone-50 opacity-75'
                                             }`}>
-                                            <div className="font-bold text-stone-700">{building.name}</div>
+                                            <div className="min-w-0">
+                                                <div className="font-bold text-stone-700">{building.name}</div>
+                                                {building.isOverride ? (
+                                                    <span className="text-[11px] font-bold text-blue-600">{t.visibilityIndividual}</span>
+                                                ) : building.groupVisible != null ? (
+                                                    <span className="text-[11px] font-bold text-orange-600">{t.visibilityFromGroup}</span>
+                                                ) : null}
+                                            </div>
+                                            <div className="flex items-center">
+                                            {building.isOverride && selectedStudent.groupId ? (
+                                                <button
+                                                    onClick={() => handleResetBuildingVisibility(selectedStudent.id, building.id)}
+                                                    className="p-2 rounded-lg text-stone-400 hover:bg-stone-100 hover:text-orange-600 transition-colors"
+                                                    title={t.resetToGroup}
+                                                >
+                                                    <RotateCcw size={16} />
+                                                </button>
+                                            ) : null}
                                             <button
                                                 onClick={() => handleUpdateBuildingVisibility(selectedStudent.id, building.id, !building.isVisible)}
                                                 className={`p-2 rounded-lg transition-colors ${building.isVisible
@@ -377,6 +484,7 @@ export default function StudentsTab() {
                                             >
                                                 {building.isVisible ? <Eye size={20} /> : <EyeOff size={20} />}
                                             </button>
+                                            </div>
                                         </div>
                                     ))}
                                     {buildingsData.length === 0 && (

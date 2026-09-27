@@ -202,6 +202,25 @@ db.exec(`
     FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  -- Student groups. A student belongs to at most one group (users.groupId).
+  CREATE TABLE IF NOT EXISTS student_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  -- Building visibility for a whole group. A student's own row in
+  -- user_building_visibility (if any) overrides this; no row anywhere means
+  -- the building is visible.
+  CREATE TABLE IF NOT EXISTS group_building_visibility (
+    groupId INTEGER NOT NULL,
+    buildingId INTEGER NOT NULL,
+    isVisible INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (groupId, buildingId),
+    FOREIGN KEY (groupId) REFERENCES student_groups(id) ON DELETE CASCADE,
+    FOREIGN KEY (buildingId) REFERENCES buildings(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS custom_emojis (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -410,6 +429,11 @@ if (schemaVersion < 2) {
   } catch (error) {
     console.error('Error backfilling homework-submission coins:', error);
   }
+}
+
+// Migrate users table: add student group membership
+if (!tableInfo.some(col => col.name === 'groupId')) {
+  db.exec('ALTER TABLE users ADD COLUMN groupId INTEGER REFERENCES student_groups(id) ON DELETE SET NULL;');
 }
 
 // Seed initial data if empty
