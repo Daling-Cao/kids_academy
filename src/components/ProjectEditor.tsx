@@ -110,7 +110,7 @@ function extractQuizSection(md: string): { quizzes: ParsedQuiz[]; rest: string }
     return { quizzes, rest };
 }
 
-function HtmlEditor({ value, onChange, style, className, onImportContent }: {
+function HtmlEditor({ value, onChange, style, className, onImportContent, fill }: {
     value: string;
     onChange: (content: string) => void;
     style?: React.CSSProperties;
@@ -121,6 +121,9 @@ function HtmlEditor({ value, onChange, style, className, onImportContent }: {
     // to its state in a single update (onChange and this can't safely both fire
     // for the same import — see handleImportContent for why).
     onImportContent?: (html: string, quizzes: ParsedQuiz[]) => void;
+    // Fill the parent's height: the toolbar stays pinned on top and only the
+    // text area scrolls.
+    fill?: boolean;
 }) {
     const quillRef = useRef<ReactQuill>(null);
     const toolbarId = useRef(`ql-tb-${++editorSeq}`).current;
@@ -293,8 +296,8 @@ function HtmlEditor({ value, onChange, style, className, onImportContent }: {
     }, [showWidgetPicker]);
 
     return (
-        <div style={{ position: 'relative' }}>
-            <div id={toolbarId}>
+        <div style={fill ? { position: 'relative', display: 'flex', flexDirection: 'column', height: '100%' } : { position: 'relative' }}>
+            <div id={toolbarId} style={fill ? { flexShrink: 0 } : undefined}>
                 <span className="ql-formats">
                     <select className="ql-font" defaultValue="">
                         <option value="" />
@@ -410,8 +413,8 @@ function HtmlEditor({ value, onChange, style, className, onImportContent }: {
                 value={value}
                 onChange={onChange}
                 modules={modules}
-                style={style}
-                className={className}
+                style={fill ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', ...style } : style}
+                className={fill ? `ql-fill ${className ?? ''}` : className}
             />
             {showPicker && createPortal(
                 <div
@@ -1124,13 +1127,13 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                                         <label className="block text-sm font-medium text-stone-600 mb-1">Content</label>
                                         <div
                                             className="bg-white rounded-xl border border-stone-300 focus-within:border-orange-400 overflow-hidden"
-                                            style={{ resize: 'vertical', overflow: 'auto', minHeight: '200px', height: '320px', maxHeight: '80vh' }}
+                                            style={{ resize: 'vertical', overflow: 'hidden', minHeight: '200px', height: '320px', maxHeight: '80vh' }}
                                         >
                                             <HtmlEditor
                                                 value={seg[cField] || ''}
                                                 onChange={(content) => handleUpdateSegment(sIndex, cField, content)}
                                                 onImportContent={(html, quizzes) => handleImportContent(sIndex, html, quizzes)}
-                                                style={{ height: 'calc(100% - 42px)' }}
+                                                fill
                                                 className="bg-orange-50/10"
                                             />
                                         </div>
@@ -1210,12 +1213,12 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                                                     <div className="mb-4">
                                                         <div
                                                             className="bg-stone-50 rounded-xl border border-stone-200 focus-within:border-orange-400 overflow-hidden"
-                                                            style={{ resize: 'vertical', overflow: 'auto', minHeight: '120px', height: '180px', maxHeight: '60vh' }}
+                                                            style={{ resize: 'vertical', overflow: 'hidden', minHeight: '120px', height: '180px', maxHeight: '60vh' }}
                                                         >
                                                             <HtmlEditor
                                                                 value={quiz.question || ''}
                                                                 onChange={(content) => handleUpdateQuiz(sIndex, qIndex, 'question', content)}
-                                                                style={{ height: 'calc(100% - 42px)' }}
+                                                                fill
                                                                 className="bg-orange-50/10"
                                                             />
                                                         </div>
@@ -1284,12 +1287,12 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                                                         <label className="block text-sm font-bold text-stone-600 mb-1">Explanation (optional — shown to students after they answer correctly)</label>
                                                         <div
                                                             className="bg-stone-50 rounded-xl border border-stone-200 focus-within:border-orange-400 overflow-hidden"
-                                                            style={{ resize: 'vertical', overflow: 'auto', minHeight: '100px', height: '140px', maxHeight: '40vh' }}
+                                                            style={{ resize: 'vertical', overflow: 'hidden', minHeight: '100px', height: '140px', maxHeight: '40vh' }}
                                                         >
                                                             <HtmlEditor
                                                                 value={quiz.explanation || ''}
                                                                 onChange={(content) => handleUpdateQuiz(sIndex, qIndex, 'explanation', content)}
-                                                                style={{ height: 'calc(100% - 42px)' }}
+                                                                fill
                                                                 className="bg-orange-50/10"
                                                             />
                                                         </div>
