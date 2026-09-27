@@ -10,6 +10,7 @@ import WidgetGallery from './pages/WidgetGallery';
 import WidgetOpenPage from './pages/WidgetOpenPage';
 import CookieConsent from './components/CookieConsent';
 import TopLoadingBar from './components/TopLoadingBar';
+import { StudentPreviewBanner, StudentPreviewButton } from './components/StudentPreview';
 import { trackRequest } from './lib/progress';
 import type { User } from './types';
 
@@ -144,12 +145,14 @@ export default function App() {
       <TopLoadingBar />
       <RouteTracker user={user} />
       <div className="min-h-screen bg-orange-50 font-sans text-stone-800">
+        {user?.isPreview && <StudentPreviewBanner />}
         {user && (
           <nav className="bg-orange-200 p-4 flex justify-between items-center shadow-sm">
             <div className="font-bold text-xl text-orange-800">
               {user.role === 'teacher' ? 'Teacher Portal' : 'Scratch Academy'}
             </div>
             <div className="flex items-center gap-4">
+              {user.role === 'teacher' && <StudentPreviewButton />}
               <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setShowProfile(true)}>
                 {user.avatar ? (
                   <img src={user.avatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm" />

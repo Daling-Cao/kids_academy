@@ -436,6 +436,13 @@ if (!tableInfo.some(col => col.name === 'groupId')) {
   db.exec('ALTER TABLE users ADD COLUMN groupId INTEGER REFERENCES student_groups(id) ON DELETE SET NULL;');
 }
 
+// Migrate users table: throwaway student accounts a teacher switches into to
+// test the student view. They are hidden from every teacher list and deleted
+// (with everything they created) when the teacher switches back.
+if (!tableInfo.some(col => col.name === 'isPreview')) {
+  db.exec('ALTER TABLE users ADD COLUMN isPreview INTEGER NOT NULL DEFAULT 0;');
+}
+
 // Seed initial data if empty
 const adminUsername = process.env.ADMIN_USERNAME || 'teacher';
 const adminPassword = process.env.ADMIN_PASSWORD || 'kids-academy-default-secure-pwd-123'; // More unique placeholder

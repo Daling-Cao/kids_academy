@@ -12,6 +12,8 @@ export interface User {
     lastPagePath?: string | null;
     lastPageAt?: string | null;
     lastPageLabel?: string | null;
+    // True while a teacher is testing the student view with a throwaway account.
+    isPreview?: boolean;
 }
 
 export interface StudentNotification {
