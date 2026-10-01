@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
-import { BookOpen, Building2, Users, MessageCircle, Trophy, Wrench } from 'lucide-react';
+import { BookOpen, Building2, Users, MessageCircle, Trophy, Wrench, Gamepad2 } from 'lucide-react';
 import ProjectsTab from './ProjectsTab';
 import BuildingsTab from './BuildingsTab';
 import StudentsTab from './StudentsTab';
 import MessagesTab from './MessagesTab';
 import RewardsTab from './RewardsTab';
 import WidgetsTab from './WidgetsTab';
+import InteractiveLessonsTab from './InteractiveLessonsTab';
 import { authFetch } from '../App';
 import { useI18n } from '../i18n';
 
-type TabKey = 'projects' | 'buildings' | 'students' | 'messages' | 'rewards' | 'widgets';
+type TabKey = 'projects' | 'buildings' | 'students' | 'messages' | 'rewards' | 'widgets' | 'interactive';
 
 export default function TeacherDashboard() {
   const { t } = useI18n();
@@ -23,6 +24,7 @@ export default function TeacherDashboard() {
     { key: 'messages', label: t.tabMessages, icon: MessageCircle },
     { key: 'rewards', label: t.tabRewards, icon: Trophy as any },
     { key: 'widgets', label: t.tabWidgets, icon: Wrench },
+    { key: 'interactive', label: t.tabInteractive, icon: Gamepad2 },
   ];
 
   useEffect(() => {
@@ -69,6 +71,7 @@ export default function TeacherDashboard() {
       {activeTab === 'messages' && <MessagesTab />}
       {activeTab === 'rewards' && <RewardsTab />}
       {activeTab === 'widgets' && <WidgetsTab />}
+      {activeTab === 'interactive' && <InteractiveLessonsTab />}
     </div>
   );
 }

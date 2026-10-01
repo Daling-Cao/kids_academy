@@ -53,6 +53,95 @@ if (fs.existsSync(legacyWidgetsDir)) {
   fs.rmSync(legacyWidgetsDir, { recursive: true, force: true });
 }
 
+// Unpacks an uploaded zip (or copies a single HTML file) into `folder` and
+// returns the entry file, relative to the folder.
+function installWidgetFiles(tmpPath: string, originalName: string, folder: string): string {
+  const ext = path.extname(originalName).toLowerCase();
+  if (ext !== '.zip') {
+    // Single file (HTML or other) — save as index.html
+    fs.copyFileSync(tmpPath, path.join(folder, 'index.html'));
+    return 'index.html';
+  }
+
+  // Extract zip preserving folder structure; strip the common root folder if any
+  const zip = new AdmZip(tmpPath);
+  const entries = zip.getEntries();
+
+  // Determine if all entries share a common root folder (typical when zipping a folder)
+  const rootFolders = new Set(entries.map(e => e.entryName.split('/')[0]));
+  const singleRoot = rootFolders.size === 1 ? [...rootFolders][0] : null;
+
+  for (const entry of entries) {
+    if (entry.isDirectory) continue;
+    let relPath = entry.entryName;
+    if (singleRoot) relPath = relPath.slice(singleRoot.length + 1);
+    if (!relPath) continue;
+
+    // Block path traversal attempts
+    const dest = path.resolve(folder, relPath);
+    if (!dest.startsWith(folder + path.sep) && dest !== folder) continue;
+
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, entry.getData());
+  }
+
+  // Detect entry HTML file: prefer index.html at root, else first .html
+  if (fs.existsSync(path.join(folder, 'index.html'))) return 'index.html';
+  const findHtml = (dir: string, base = ''): string | null => {
+    for (const f of fs.readdirSync(dir)) {
+      const full = path.join(dir, f);
+      const rel = base ? `${base}/${f}` : f;
+      if (fs.statSync(full).isDirectory()) {
+        const found = findHtml(full, rel);
+        if (found) return found;
+      } else if (f.toLowerCase().endsWith('.html')) {
+        return rel;
+      }
+    }
+    return null;
+  };
+  return findHtml(folder) || 'index.html';
+}
+
+// Injected into the HTML of interactive lesson versions. The page runs in a
+// sandbox without access to the app, so it talks to the classroom through
+// postMessage only. Pages can call window.KidsAcademy.* to report quiz
+// progress; selecting text always offers "ask the teacher".
+const LESSON_BRIDGE = `<script>(function(){
+if(window.KidsAcademy)return;
+function send(m){m.source='kidsacademy';try{window.top.postMessage(m,'*');}catch(e){}}
+window.KidsAcademy={
+  // Declare that the page has a quiz, so finishing it can be rewarded.
+  hasQuiz:function(){send({type:'hasQuiz'});},
+  // Report one answered question (correct: boolean, id: any stable question id).
+  answer:function(correct,id){send({type:"answer",correct:!!correct,id:String(id==null?"":id)});},
+  // Report that the quiz is finished.
+  finished:function(){send({type:"finished"});},
+  ask:function(text){send({type:'ask',text:String(text||'').slice(0,600)});}
+};
+var btn=null,timer=null;
+function hide(){if(btn){btn.remove();btn=null;}}
+function show(){
+  var sel=window.getSelection();var text=sel?sel.toString().trim():'';
+  if(!text||!sel.rangeCount){hide();return;}
+  var r=sel.getRangeAt(0).getBoundingClientRect();
+  if(!btn){
+    btn=document.createElement('button');btn.type='button';btn.textContent='\\u2753 Lehrer fragen';
+    btn.setAttribute('style','position:fixed;z-index:2147483647;background:#f97316;color:#fff;border:0;border-radius:999px;padding:6px 12px;font:700 13px system-ui,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.3);cursor:pointer;white-space:nowrap');
+    btn.addEventListener('mousedown',function(e){e.preventDefault();});
+    btn.addEventListener('click',function(){var t=window.getSelection().toString().trim();hide();if(t)window.KidsAcademy.ask(t);});
+    document.documentElement.appendChild(btn);
+  }
+  btn.style.left=Math.min(Math.max(4,r.right+6),window.innerWidth-140)+'px';
+  btn.style.top=Math.min(Math.max(4,r.top-4),window.innerHeight-40)+'px';
+}
+function schedule(){clearTimeout(timer);timer=setTimeout(show,250);}
+document.addEventListener('mouseup',schedule);
+document.addEventListener('touchend',schedule);
+document.addEventListener('keyup',function(e){if(e.shiftKey)schedule();});
+document.addEventListener('selectionchange',function(){var s=window.getSelection();if(!s||!s.toString().trim())hide();});
+})();</script>`;
+
 const widgetUpload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, widgetsDir),
@@ -497,6 +586,26 @@ async function startServer() {
   // Uploaded widgets are untrusted active content. The CSP sandbox applies even
   // when someone navigates directly to a widget URL, so it cannot regain the
   // application's origin or use the HttpOnly session cookie against /api/*.
+  // Interactive lesson pages get the classroom bridge injected (see LESSON_BRIDGE).
+  const widgetCsp = "sandbox allow-scripts allow-forms allow-downloads allow-modals; object-src 'none'; base-uri 'none'";
+  app.get('/widget-files/:id/*', (req: Request, res: Response, next: NextFunction) => {
+    const rel = (req.params as any)[0] as string;
+    if (!/\.html?$/i.test(rel)) return next();
+    const widget = db.prepare('SELECT kind FROM widgets WHERE id = ?').get(req.params.id) as any;
+    if (!widget || widget.kind !== 'lesson') return next();
+    const folder = path.join(widgetsDir, String(req.params.id));
+    const file = path.resolve(folder, rel);
+    if (!file.startsWith(folder + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return next();
+    let html = fs.readFileSync(file, 'utf-8');
+    html = /<\/body>/i.test(html) ? html.replace(/<\/body>/i, () => `${LESSON_BRIDGE}</body>`) : html + LESSON_BRIDGE;
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Security-Policy', widgetCsp);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.send(html);
+  });
+
   app.use('/widget-files', express.static(widgetsDir, {
     setHeaders(res) {
       res.setHeader(
@@ -2049,58 +2158,8 @@ async function startServer() {
     fs.mkdirSync(widgetFolder, { recursive: true });
 
     const tmpPath = req.file.path;
-    const ext = path.extname(req.file.originalname).toLowerCase();
-    let entryFile = 'index.html';
-
     try {
-      if (ext === '.zip') {
-        // Extract zip preserving folder structure; strip the common root folder if any
-        const zip = new AdmZip(tmpPath);
-        const entries = zip.getEntries();
-
-        // Determine if all entries share a common root folder (typical when zipping a folder)
-        const rootFolders = new Set(entries.map(e => e.entryName.split('/')[0]));
-        const singleRoot = rootFolders.size === 1 ? [...rootFolders][0] : null;
-
-        for (const entry of entries) {
-          if (entry.isDirectory) continue;
-          let relPath = entry.entryName;
-          if (singleRoot) relPath = relPath.slice(singleRoot.length + 1);
-          if (!relPath) continue;
-
-          // Block path traversal attempts
-          const dest = path.resolve(widgetFolder, relPath);
-          if (!dest.startsWith(widgetFolder + path.sep) && dest !== widgetFolder) continue;
-
-          fs.mkdirSync(path.dirname(dest), { recursive: true });
-          fs.writeFileSync(dest, entry.getData());
-        }
-
-        // Detect entry HTML file: prefer index.html at root, else first .html
-        if (fs.existsSync(path.join(widgetFolder, 'index.html'))) {
-          entryFile = 'index.html';
-        } else {
-          const findHtml = (dir: string, base = ''): string | null => {
-            for (const f of fs.readdirSync(dir)) {
-              const full = path.join(dir, f);
-              const rel = base ? `${base}/${f}` : f;
-              if (fs.statSync(full).isDirectory()) {
-                const found = findHtml(full, rel);
-                if (found) return found;
-              } else if (f.toLowerCase().endsWith('.html')) {
-                return rel;
-              }
-            }
-            return null;
-          };
-          entryFile = findHtml(widgetFolder) || 'index.html';
-        }
-      } else {
-        // Single file (HTML or other) — save as index.html
-        fs.copyFileSync(tmpPath, path.join(widgetFolder, 'index.html'));
-        entryFile = 'index.html';
-      }
-
+      const entryFile = installWidgetFiles(tmpPath, req.file.originalname, widgetFolder);
       fs.unlinkSync(tmpPath);
       db.prepare('UPDATE widgets SET entryFile = ? WHERE id = ?').run(entryFile, widgetId);
 
@@ -2115,17 +2174,75 @@ async function startServer() {
     }
   });
 
-  // Delete a widget (teacher only)
-  app.delete('/api/widgets/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+  // Replace the files of an existing widget (teacher only). The widget keeps its
+  // id, so every project pointing at it picks up the new version.
+  app.put('/api/widgets/:id/file', authMiddleware, teacherOnly, widgetUpload.single('file'), (req: AuthRequest, res: Response) => {
     const { id } = req.params;
-    const widget = db.prepare('SELECT * FROM widgets WHERE id = ?').get(id);
-    if (!widget) return res.status(404).json({ error: 'Not found' });
+    if (!req.file) return res.status(400).json({ error: 'file is required' });
+    const tmpPath = req.file.path;
+    const widget = db.prepare('SELECT id FROM widgets WHERE id = ?').get(id);
+    if (!widget) {
+      try { fs.unlinkSync(tmpPath); } catch {}
+      return res.status(404).json({ error: 'Not found' });
+    }
 
-    const widgetFolder = path.join(widgetsDir, id);
-    try { fs.rmSync(widgetFolder, { recursive: true, force: true }); } catch {}
+    const widgetFolder = path.join(widgetsDir, String(id));
+    const stagingFolder = `${widgetFolder}.new`;
+    try {
+      fs.rmSync(stagingFolder, { recursive: true, force: true });
+      fs.mkdirSync(stagingFolder, { recursive: true });
+      // Only swap once the new files extracted cleanly, so a broken zip never
+      // destroys the version that is currently live.
+      const entryFile = installWidgetFiles(tmpPath, req.file.originalname, stagingFolder);
+      fs.rmSync(widgetFolder, { recursive: true, force: true });
+      fs.renameSync(stagingFolder, widgetFolder);
+      db.prepare('UPDATE widgets SET entryFile = ? WHERE id = ?').run(entryFile, id);
+      res.json({ success: true, widget: db.prepare('SELECT * FROM widgets WHERE id = ?').get(id) });
+    } catch (err: any) {
+      try { fs.rmSync(stagingFolder, { recursive: true, force: true }); } catch {}
+      res.status(500).json({ error: err.message });
+    } finally {
+      try { fs.unlinkSync(tmpPath); } catch {}
+    }
+  });
+
+  // Interactive lesson versions with the projects that use them (teacher only).
+  app.get('/api/interactive-lessons', authMiddleware, teacherOnly, (_req: AuthRequest, res: Response) => {
+    const widgets = db.prepare("SELECT * FROM widgets WHERE kind = 'lesson' ORDER BY createdAt DESC, id DESC").all() as any[];
+    const usage = db.prepare('SELECT id, title, interactiveWidgetId FROM projects WHERE interactiveWidgetId IS NOT NULL').all() as any[];
+    res.json(widgets.map(w => ({
+      ...w,
+      projects: usage.filter(p => p.interactiveWidgetId === w.id).map(p => ({ id: p.id, title: p.title })),
+    })));
+  });
+
+  const deleteWidgetById = (id: string): boolean => {
+    const widget = db.prepare('SELECT id FROM widgets WHERE id = ?').get(id);
+    if (!widget) return false;
+    try { fs.rmSync(path.join(widgetsDir, String(id)), { recursive: true, force: true }); } catch {}
     db.prepare('UPDATE projects SET interactiveWidgetId = NULL WHERE interactiveWidgetId = ?').run(id);
     db.prepare('DELETE FROM widgets WHERE id = ?').run(id);
+    return true;
+  };
+
+  // Delete a widget (teacher only)
+  app.delete('/api/widgets/:id', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    if (!deleteWidgetById(req.params.id)) return res.status(404).json({ error: 'Not found' });
     res.json({ success: true });
+  });
+
+  // Delete several interactive lesson versions at once (teacher only).
+  // Restricted to kind 'lesson' so a bad id list can never wipe the tool library.
+  app.post('/api/interactive-lessons/delete', authMiddleware, teacherOnly, (req: AuthRequest, res: Response) => {
+    const ids: unknown[] = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    let deleted = 0;
+    for (const raw of ids) {
+      const id = Number(raw);
+      if (!Number.isInteger(id)) continue;
+      const row = db.prepare("SELECT id FROM widgets WHERE id = ? AND kind = 'lesson'").get(id);
+      if (row && deleteWidgetById(String(id))) deleted++;
+    }
+    res.json({ success: true, deleted });
   });
 
   // ─── Vite middleware for development ─────────────────────────────

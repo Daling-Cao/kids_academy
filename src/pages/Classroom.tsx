@@ -8,6 +8,7 @@ import SelectionPopup from '../components/SelectionPopup';
 import WidgetModal from '../components/WidgetModal';
 import HomeworkPanel from '../components/HomeworkPanel';
 import AssignmentPanel from '../components/AssignmentPanel';
+import AskTeacherDialog from '../components/AskTeacherDialog';
 import type { User, Project, Quiz, HomeworkStatus, AssignmentSubmission } from '../types';
 import { useI18n } from '../i18n';
 
@@ -30,6 +31,49 @@ export default function Classroom({ user }: { user: User }) {
   // Projects with an interactive version open it by default.
   const [view, setView] = useState<'interactive' | 'article'>('article');
   const contentRef = useRef<HTMLDivElement>(null);
+  const [askText, setAskText] = useState<string | null>(null);
+  // What the interactive page reported through its postMessage bridge.
+  const [interactiveHasQuiz, setInteractiveHasQuiz] = useState(false);
+  const [interactiveQuizDone, setInteractiveQuizDone] = useState(false);
+  const interactiveWrong = useRef<Record<string, number>>({});
+  const completedRef = useRef(false);
+  completedRef.current = completed;
+
+  useEffect(() => {
+    setInteractiveHasQuiz(false);
+    setInteractiveQuizDone(false);
+    interactiveWrong.current = {};
+  }, [id]);
+
+  // The interactive page is sandboxed and can only talk to us via postMessage.
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      const m = e.data;
+      // Sandboxed frames have the opaque origin "null".
+      if (e.origin !== 'null' || !m || m.source !== 'kidsacademy') return;
+      if (m.type === 'ask') {
+        setAskText(String(m.text || '').slice(0, 600));
+      } else if (m.type === 'hasQuiz') {
+        setInteractiveHasQuiz(true);
+      } else if (m.type === 'answer') {
+        setInteractiveHasQuiz(true);
+        if (!m.correct) {
+          const key = String(m.id ?? '');
+          interactiveWrong.current[key] = (interactiveWrong.current[key] || 0) + 1;
+        }
+      } else if (m.type === 'finished') {
+        setInteractiveHasQuiz(true);
+        setInteractiveQuizDone(true);
+        if (completedRef.current) return;
+        // Same rule as the article quiz: a question that needed two wrong
+        // tries means no coin for this lesson.
+        const penalty = (Object.values(interactiveWrong.current) as number[]).some(n => n >= 2);
+        handleCompleteProjectRef.current(penalty);
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -79,6 +123,10 @@ export default function Classroom({ user }: { user: User }) {
       console.error('Failed to complete project', err);
     }
   };
+
+  // The message listener is registered once; it must always call the latest handler.
+  const handleCompleteProjectRef = useRef(handleCompleteProject);
+  handleCompleteProjectRef.current = handleCompleteProject;
 
   const handleCompleteSegment = async (segmentId: number, noScore = false) => {
     try {
@@ -290,13 +338,35 @@ export default function Classroom({ user }: { user: User }) {
               sandbox="allow-scripts allow-forms allow-downloads allow-modals"
             />
             <div className="flex flex-wrap items-center justify-between gap-4 border-t-2 border-orange-100 bg-orange-50/60 px-6 py-4">
-              <p className="text-stone-600 font-medium">{t.interactiveFinishHint}</p>
-              <button
-                onClick={() => { setView('article'); window.scrollTo({ top: 0 }); }}
-                className="rounded-xl bg-blue-500 px-5 py-2 font-bold text-white shadow-md hover:bg-blue-600"
-              >
-                {t.interactiveToArticle}
-              </button>
+              <p className="min-w-0 flex-1 text-stone-600 font-medium">
+                {completed ? t.interactiveCompletedHint : interactiveHasQuiz ? t.interactiveQuizHint : t.interactiveFinishHint}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setAskText('')}
+                  className="rounded-xl border-2 border-orange-200 bg-white px-4 py-2 font-bold text-orange-700 hover:bg-orange-50"
+                >
+                  {t.interactiveAskTeacher}
+                </button>
+                <button
+                  // Without a finished quiz the lesson is marked as done but earns no coin,
+                  // otherwise the reward could be claimed without answering anything.
+                  onClick={() => handleCompleteProject(interactiveHasQuiz && !interactiveQuizDone)}
+                  disabled={completed}
+                  className={`flex items-center gap-2 rounded-xl px-5 py-2 font-bold shadow-md ${completed
+                    ? 'cursor-default bg-green-500 text-white'
+                    : 'bg-emerald-500 text-white hover:bg-emerald-600'}`}
+                >
+                  {completed ? <CheckSquare size={20} /> : <Square size={20} />}
+                  {completed ? t.fullyCompleted : t.interactiveMarkDone}
+                </button>
+                <button
+                  onClick={() => { setView('article'); window.scrollTo({ top: 0 }); }}
+                  className="rounded-xl bg-blue-500 px-5 py-2 font-bold text-white shadow-md hover:bg-blue-600"
+                >
+                  {t.interactiveToArticle}
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -659,6 +729,9 @@ export default function Classroom({ user }: { user: User }) {
         </div>
       </div>
       <SelectionPopup contentRef={contentRef} projectTitle={project.title} />
+      {askText !== null && (
+        <AskTeacherDialog projectTitle={project.title} selectedText={askText} onClose={() => setAskText(null)} />
+      )}
       {activeWidget && (
         <WidgetModal
           widgetId={activeWidget.id}

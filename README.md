@@ -104,3 +104,9 @@ For production deployment on a VPS (e.g., IONOS) using Nginx and PM2, please ref
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+### Managing interactive lessons, rewards and questions
+
+- **Teacher tab *Interaktive Lektionen***: lists every uploaded interactive version with the projects using it. Delete one or many at once, replace a version in place (project links are kept), or pick several zips and replace them in one go — files are matched to lessons by name and the mapping can be corrected before applying.
+- **Bridge**: the server injects a small script into the HTML of interactive versions. Pages may call `KidsAcademy.hasQuiz()`, `KidsAcademy.answer(correct, questionId)` and `KidsAcademy.finished()`. Finishing the quiz completes the lesson and awards the BlockCoin (not if a question needed two wrong tries, same rule as the article quiz). The classroom also has a manual *Lektion abschließen* button; without a finished quiz it completes the lesson but gives no coin.
+- **Ask the teacher**: selecting text inside an interactive page shows a *Lehrer fragen* button; the classroom footer has a general *Frage an den Lehrer* button. Both send a message to the teacher inbox.

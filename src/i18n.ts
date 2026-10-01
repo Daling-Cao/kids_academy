@@ -61,7 +61,11 @@ const translations = {
     noSegments: 'Noch keine Abschnitte verfügbar.',
     viewInteractive: '🎮 Interaktiv',
     viewArticle: '📖 Artikel & Quiz',
-    interactiveFinishHint: 'Fertig mit der interaktiven Lektion? Im Artikel findest du das Quiz und schließt die Lektion ab.',
+    interactiveFinishHint: 'Fertig mit der interaktiven Lektion? Markiere sie als abgeschlossen. Markiere Text in der Lektion, um den Lehrer dazu zu fragen.',
+    interactiveQuizHint: 'Löse das Quiz in der Lektion, um deinen BlockCoin zu bekommen. Etwas unklar? Markiere den Text und frage den Lehrer.',
+    interactiveCompletedHint: 'Lektion abgeschlossen. Du kannst sie jederzeit noch einmal anschauen.',
+    interactiveAskTeacher: '❓ Frage an den Lehrer',
+    interactiveMarkDone: 'Lektion abschließen',
     interactiveToArticle: 'Zum Artikel & Quiz →',
     generateTestData: 'Testdaten generieren',
 
@@ -212,6 +216,7 @@ const translations = {
 
     // Widget Library
     tabWidgets: 'Werkzeuge',
+    tabInteractive: 'Interaktive Lektionen',
     widgetLibrary: 'Werkzeugbibliothek',
     widgetLibraryDesc: 'Interaktive Lernwerkzeuge – direkt im Browser nutzbar.',
     uploadWidget: 'Werkzeug hochladen',
