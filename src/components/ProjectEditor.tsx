@@ -13,7 +13,7 @@ import HomeworkChecksEditor from './HomeworkChecksEditor';
 import InteractiveVersionEditor from './InteractiveVersionEditor';
 import { authFetch } from '../App';
 import { uploadFile } from '../lib/upload';
-import type { Building, Quiz, ProjectSegment, Widget, HomeworkCheck, ProjectType } from '../types';
+import type { Building, Quiz, ProjectSegment, Widget, HomeworkCheck, ProjectType, LessonDisplay } from '../types';
 
 // react-quill-new's published props omit React's ref attribute even though the
 // component forwards the editor instance at runtime.
@@ -572,6 +572,7 @@ interface ProjectData {
     homeworkChecks?: HomeworkCheck[];
     assignmentInstructions?: string;
     interactiveWidgetId?: number | null;
+    lessonDisplay?: LessonDisplay;
 }
 
 interface ProjectEditorProps {
@@ -1072,6 +1073,28 @@ export default function ProjectEditor({ project, setProject, onSubmit, onCancel,
                         onChange={(id) => setProject({ ...projectRef.current, interactiveWidgetId: id })}
                         projectTitle={project.title}
                     />
+                    <div className="mt-6">
+                        <label className="mb-2 block text-sm font-medium text-stone-600">Anzeige im Klassenzimmer</label>
+                        <div className="flex flex-wrap gap-2">
+                            {([
+                                ['both', 'Beides (Umschalter)'],
+                                ['interactive', 'Nur interaktiv'],
+                                ['article', 'Nur Artikel & Quiz'],
+                            ] as [LessonDisplay, string][]).map(([value, label]) => (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => setProject({ ...projectRef.current, lessonDisplay: value })}
+                                    className={`rounded-xl border-2 px-4 py-2 text-sm font-bold transition-colors ${(project.lessonDisplay || 'both') === value
+                                        ? 'border-orange-500 bg-orange-500 text-white'
+                                        : 'border-orange-100 bg-white text-stone-600 hover:border-orange-300'}`}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                        <p className="mt-1 text-xs text-stone-500">Wird nur ein Typ angezeigt, entfällt der Umschalter oben. Bei Hausaufgaben bleibt der Artikel immer erreichbar.</p>
+                    </div>
                 </CollapsibleSection>
 
                 <CollapsibleSection

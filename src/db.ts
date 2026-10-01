@@ -324,6 +324,11 @@ if (projectsInfo.length > 0) {
       ALTER TABLE projects ADD COLUMN interactiveWidgetId INTEGER;
     `);
   }
+
+  // Which lesson types the classroom offers: 'both' (tabs), 'interactive' or 'article'.
+  if (!projectsInfo.some(col => col.name === 'lessonDisplay')) {
+    db.exec(`ALTER TABLE projects ADD COLUMN lessonDisplay TEXT DEFAULT 'both';`);
+  }
 }
 
 // Migrate widgets table: 'tool' widgets appear in the student tool library,

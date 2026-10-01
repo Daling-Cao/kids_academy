@@ -91,7 +91,7 @@ export default function Classroom({ user }: { user: User }) {
     ])
       .then(([projectData, progressData]) => {
         setProject(projectData);
-        setView(projectData?.interactiveWidget ? 'interactive' : 'article');
+        setView(projectData?.interactiveWidget && projectData?.lessonDisplay !== 'article' ? 'interactive' : 'article');
         setHomeworkStatus(projectData?.homeworkStatus || null);
         setAssignmentSubmission(projectData?.assignmentSubmission || null);
         if (progressData?.state === 'completed') {
@@ -260,8 +260,11 @@ export default function Classroom({ user }: { user: User }) {
   const isHomework = project.projectType === 'homework';
   // The server already withholds the article; this only mirrors that state.
   const articleLocked = isHomework && !homeworkStatus?.submitted;
-  const interactive = project.interactiveWidget || null;
-  const showInteractive = !!interactive && view === 'interactive';
+  // The teacher can restrict a project to one lesson type; homework keeps its article reachable.
+  const display = project.lessonDisplay || 'both';
+  const interactive = display === 'article' ? null : project.interactiveWidget || null;
+  const interactiveOnly = !!interactive && display === 'interactive' && !isHomework;
+  const showInteractive = !!interactive && (interactiveOnly || view === 'interactive');
 
   return (
     <>
@@ -306,7 +309,7 @@ export default function Classroom({ user }: { user: User }) {
           <div className="w-24"></div>
         </div>
 
-        {interactive && (
+        {interactive && !interactiveOnly && (
           <div className="flex justify-center gap-2 border-b-2 border-orange-100 bg-orange-50/60 px-4 py-3" role="tablist">
             {(['interactive', 'article'] as const).map(mode => (
               <button
@@ -360,12 +363,12 @@ export default function Classroom({ user }: { user: User }) {
                   {completed ? <CheckSquare size={20} /> : <Square size={20} />}
                   {completed ? t.fullyCompleted : t.interactiveMarkDone}
                 </button>
-                <button
+                {!interactiveOnly && <button
                   onClick={() => { setView('article'); window.scrollTo({ top: 0 }); }}
                   className="rounded-xl bg-blue-500 px-5 py-2 font-bold text-white shadow-md hover:bg-blue-600"
                 >
                   {t.interactiveToArticle}
-                </button>
+                </button>}
               </div>
             </div>
           </div>

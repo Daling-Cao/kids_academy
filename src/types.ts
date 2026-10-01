@@ -65,6 +65,9 @@ export interface ProjectSegment {
 
 export type ProjectType = 'lesson' | 'homework';
 
+// Which lesson types the classroom shows: tabs for both, or just one of them.
+export type LessonDisplay = 'both' | 'interactive' | 'article';
+
 export type HomeworkCheckType =
     | 'minSprites'
     | 'minBlocks'
@@ -188,6 +191,7 @@ export interface Project {
     // Interactive version (an uploaded 'lesson' widget). When present the
     // classroom opens it by default; the article stays one click away.
     interactiveWidgetId?: number | null;
+    lessonDisplay?: LessonDisplay;
     // Resolved by GET /api/projects/:id; null while the content is locked.
     interactiveWidget?: InteractiveWidget | null;
     // Only on the student's building listing, for the door badge.

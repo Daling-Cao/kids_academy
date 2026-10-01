@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Plus, Edit2, Trash2, Lock, Unlock, GripVertical, FlaskConical, X, CheckCircle2, Save } from 'lucide-react';
 import ProjectEditor from '../components/ProjectEditor';
 import { authFetch } from '../App';
-import type { Project, Building, ProjectSegment, HomeworkCheck, ProjectType, AssignmentOverviewProject } from '../types';
+import type { Project, Building, ProjectSegment, HomeworkCheck, ProjectType, LessonDisplay, AssignmentOverviewProject } from '../types';
 import { useI18n } from '../i18n';
 
 interface ProjectData {
@@ -22,6 +22,7 @@ interface ProjectData {
     homeworkChecks: HomeworkCheck[];
     assignmentInstructions: string;
     interactiveWidgetId: number | null;
+    lessonDisplay: LessonDisplay;
 }
 
 interface EditingProject extends ProjectData {
@@ -127,6 +128,7 @@ export default function ProjectsTab() {
         homeworkChecks: [],
         assignmentInstructions: '',
         interactiveWidgetId: null,
+        lessonDisplay: 'both',
     });
     const closeAddForm = useCallback(() => {
         setShowSaveConfirmation(false);
@@ -186,7 +188,7 @@ export default function ProjectsTab() {
 
         setEditingProject({ ...newProject, id: Number(data.id) });
         setShowAddForm(false);
-        setNewProject({ buildingId: buildings[0]?.id || 1, title: '', description: '', scratchFileUrl: '', scratchProjectId: '', finalScratchFileUrl: '', finalScratchProjectId: '', coverImage: '', tags: [], segments: [], projectType: 'lesson', homeworkInstructions: '', homeworkChecks: [], assignmentInstructions: '', interactiveWidgetId: null });
+        setNewProject({ buildingId: buildings[0]?.id || 1, title: '', description: '', scratchFileUrl: '', scratchProjectId: '', finalScratchFileUrl: '', finalScratchProjectId: '', coverImage: '', tags: [], segments: [], projectType: 'lesson', homeworkInstructions: '', homeworkChecks: [], assignmentInstructions: '', interactiveWidgetId: null, lessonDisplay: 'both' });
         setShowSaveConfirmation(true);
         fetchProjects();
     };
@@ -577,7 +579,7 @@ export default function ProjectsTab() {
                                                             homeworkInstructions: project.homeworkInstructions || '',
                                                             homeworkChecks: project.homeworkChecks || [],
                                                             assignmentInstructions: project.assignmentInstructions || '',
-                                                            interactiveWidgetId: project.interactiveWidgetId ?? null,
+                                                            interactiveWidgetId: project.interactiveWidgetId ?? null, lessonDisplay: project.lessonDisplay || 'both',
                                                         });
                                                         setShowAddForm(false);
                                                     }}
@@ -663,7 +665,7 @@ export default function ProjectsTab() {
                                     </button>
                                     <button
                                         onClick={() => {
-                                            setEditingProject({ id: project.id, buildingId: project.buildingId, title: project.title, description: project.description, scratchFileUrl: project.scratchFileUrl, scratchProjectId: project.scratchProjectId, finalScratchFileUrl: project.finalScratchFileUrl || '', finalScratchProjectId: project.finalScratchProjectId || '', coverImage: project.coverImage, tags: project.tags || [], segments: project.segments || [], projectType: project.projectType || 'lesson', homeworkInstructions: project.homeworkInstructions || '', homeworkChecks: project.homeworkChecks || [], assignmentInstructions: project.assignmentInstructions || '', interactiveWidgetId: project.interactiveWidgetId ?? null });
+                                            setEditingProject({ id: project.id, buildingId: project.buildingId, title: project.title, description: project.description, scratchFileUrl: project.scratchFileUrl, scratchProjectId: project.scratchProjectId, finalScratchFileUrl: project.finalScratchFileUrl || '', finalScratchProjectId: project.finalScratchProjectId || '', coverImage: project.coverImage, tags: project.tags || [], segments: project.segments || [], projectType: project.projectType || 'lesson', homeworkInstructions: project.homeworkInstructions || '', homeworkChecks: project.homeworkChecks || [], assignmentInstructions: project.assignmentInstructions || '', interactiveWidgetId: project.interactiveWidgetId ?? null, lessonDisplay: project.lessonDisplay || 'both' });
                                             setShowAddForm(false);
                                         }}
                                         className="p-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors shadow-sm"
