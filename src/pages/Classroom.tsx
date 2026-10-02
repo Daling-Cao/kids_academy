@@ -36,6 +36,10 @@ export default function Classroom({ user }: { user: User }) {
   const [interactiveHasQuiz, setInteractiveHasQuiz] = useState(false);
   const [interactiveQuizDone, setInteractiveQuizDone] = useState(false);
   const interactiveWrong = useRef<Record<string, number>>({});
+  // Replaying a finished lesson: bumping the key reloads the iframe with a clean slate.
+  const [replayKey, setReplayKey] = useState(0);
+  // Completed article segments the student chose to practice again.
+  const [practiceSegs, setPracticeSegs] = useState<Record<number, boolean>>({});
   const completedRef = useRef(false);
   completedRef.current = completed;
 
@@ -43,6 +47,8 @@ export default function Classroom({ user }: { user: User }) {
     setInteractiveHasQuiz(false);
     setInteractiveQuizDone(false);
     interactiveWrong.current = {};
+    setReplayKey(0);
+    setPracticeSegs({});
   }, [id]);
 
   // The interactive page is sandboxed and can only talk to us via postMessage.
@@ -127,6 +133,21 @@ export default function Classroom({ user }: { user: User }) {
   // The message listener is registered once; it must always call the latest handler.
   const handleCompleteProjectRef = useRef(handleCompleteProject);
   handleCompleteProjectRef.current = handleCompleteProject;
+
+  // Practice a finished lesson again. Completion and the coin are already
+  // recorded server-side, so replaying never changes progress or rewards.
+  const handleReplayInteractive = () => {
+    setInteractiveQuizDone(false);
+    interactiveWrong.current = {};
+    setReplayKey(k => k + 1);
+  };
+
+  const handleReplaySegment = (segId: number) => {
+    setPracticeSegs(prev => ({ ...prev, [segId]: true }));
+    setSegmentAnswers(prev => ({ ...prev, [segId]: {} }));
+    setSegmentShowResults(prev => ({ ...prev, [segId]: false }));
+    setQuizWrongAttempts(prev => ({ ...prev, [segId]: {} }));
+  };
 
   const handleCompleteSegment = async (segmentId: number, noScore = false) => {
     try {
@@ -332,7 +353,7 @@ export default function Classroom({ user }: { user: User }) {
           <div>
             {/* Sandboxed like every widget: scripts run, but no access to the app origin or /api/* */}
             <iframe
-              key={interactive.id}
+              key={`${interactive.id}-${replayKey}`}
               src={`/widget-files/${interactive.id}/${interactive.entryFile || 'index.html'}`}
               title={interactive.name}
               className="block w-full border-0"
@@ -351,6 +372,12 @@ export default function Classroom({ user }: { user: User }) {
                 >
                   {t.interactiveAskTeacher}
                 </button>
+                {completed && <button
+                  onClick={handleReplayInteractive}
+                  className="rounded-xl border-2 border-orange-200 bg-white px-4 py-2 font-bold text-orange-700 hover:bg-orange-50"
+                >
+                  {t.replayQuiz}
+                </button>}
                 <button
                   // Without a finished quiz the lesson is marked as done but earns no coin,
                   // otherwise the reward could be claimed without answering anything.
@@ -493,6 +520,8 @@ export default function Classroom({ user }: { user: User }) {
               const segId = seg.id!;
               const isSegLocked = !!seg.isLocked;
               const isSegCompleted = segmentProgress[segId] === 'completed';
+              // A completed segment shows its answers, unless it is being practiced again.
+              const quizLocked = isSegCompleted && !practiceSegs[segId];
               
               const sTitle = seg.title;
               const sContent = seg.content;
@@ -534,8 +563,8 @@ export default function Classroom({ user }: { user: User }) {
                           const quizCorrect = isQuizCorrect(quiz, quizAns);
                           const wrongAttempts = (quizWrongAttempts[segId] || {})[qIndex] || 0;
                           // 答对或连续两次答错后才揭示正确答案
-                          const revealCorrect = isSegCompleted || (showResults && quizCorrect) || wrongAttempts >= 2;
-                          const showExplanation = !!quiz.explanation && (isSegCompleted || (showResults && quizCorrect));
+                          const revealCorrect = quizLocked || (showResults && quizCorrect) || wrongAttempts >= 2;
+                          const showExplanation = !!quiz.explanation && (quizLocked || (showResults && quizCorrect));
 
                           return (
                           <div key={qIndex} className="bg-white p-8 rounded-2xl shadow-sm border border-stone-100">
@@ -562,7 +591,7 @@ export default function Classroom({ user }: { user: User }) {
                                 const isSelected = Array.isArray(ans) ? ans.includes(oIndex) : ans === oIndex;
                                 const correctIndices = quiz.correctOptionIndices || [quiz.correctOptionIndex ?? 0];
                                 const isCorrect = correctIndices.includes(oIndex);
-                                const showCorrectness = showResults || isSegCompleted;
+                                const showCorrectness = showResults || quizLocked;
 
                                 let btnClass = "text-left px-6 py-4 rounded-xl border-2 transition-all font-medium text-lg ";
                                 if (revealCorrect && isCorrect) {
@@ -588,7 +617,7 @@ export default function Classroom({ user }: { user: User }) {
                                   <button
                                     key={oIndex}
                                     onClick={() => handleAnswerChange(segId, qIndex, oIndex, !!quiz.isMultiSelect)}
-                                    disabled={isSegCompleted}
+                                    disabled={quizLocked}
                                     className={btnClass}
                                   >
                                       <div className="flex items-center gap-4">
@@ -617,7 +646,7 @@ export default function Classroom({ user }: { user: User }) {
                               })}
                             </div>
 
-                            {showResults && !quizCorrect && !isSegCompleted && (
+                            {showResults && !quizCorrect && !quizLocked && (
                               <div className={`mt-6 ml-14 px-5 py-3 rounded-xl font-medium text-lg ${wrongAttempts >= 2
                                   ? 'bg-green-50 border-2 border-green-200 text-green-800'
                                   : 'bg-red-50 border-2 border-red-200 text-red-700'
@@ -637,7 +666,18 @@ export default function Classroom({ user }: { user: User }) {
                         })}
                       </div>
 
-                      {!isSegCompleted && (
+                      {quizLocked && (
+                        <div className="mt-8 flex justify-center">
+                          <button
+                            onClick={() => handleReplaySegment(segId)}
+                            className="px-10 py-4 rounded-2xl font-bold text-lg bg-white border-2 border-orange-300 text-orange-700 hover:bg-orange-50 shadow-md"
+                          >
+                            {t.replayQuiz}
+                          </button>
+                        </div>
+                      )}
+
+                      {!quizLocked && (
                         <div className="mt-8 flex justify-center">
                           <button
                             onClick={() => handleCheckAnswers(segId, segQuizzes)}
