@@ -35,6 +35,8 @@ export default function Classroom({ user }: { user: User }) {
   // What the interactive page reported through its postMessage bridge.
   const [interactiveHasQuiz, setInteractiveHasQuiz] = useState(false);
   const [interactiveQuizDone, setInteractiveQuizDone] = useState(false);
+  // Set once the page reports its reading position; null means it never does.
+  const [interactiveAtEnd, setInteractiveAtEnd] = useState<boolean | null>(null);
   const interactiveWrong = useRef<Record<string, number>>({});
   // Replaying a finished lesson: bumping the key reloads the iframe with a clean slate.
   const [replayKey, setReplayKey] = useState(0);
@@ -46,6 +48,7 @@ export default function Classroom({ user }: { user: User }) {
   useEffect(() => {
     setInteractiveHasQuiz(false);
     setInteractiveQuizDone(false);
+    setInteractiveAtEnd(null);
     interactiveWrong.current = {};
     setReplayKey(0);
     setPracticeSegs({});
@@ -59,6 +62,8 @@ export default function Classroom({ user }: { user: User }) {
       if (e.origin !== 'null' || !m || m.source !== 'kidsacademy') return;
       if (m.type === 'ask') {
         setAskText(String(m.text || '').slice(0, 600));
+      } else if (m.type === 'progress') {
+        setInteractiveAtEnd(!!m.atEnd);
       } else if (m.type === 'hasQuiz') {
         setInteractiveHasQuiz(true);
       } else if (m.type === 'answer') {
@@ -138,6 +143,7 @@ export default function Classroom({ user }: { user: User }) {
   // recorded server-side, so replaying never changes progress or rewards.
   const handleReplayInteractive = () => {
     setInteractiveQuizDone(false);
+    setInteractiveAtEnd(null);
     interactiveWrong.current = {};
     setReplayKey(k => k + 1);
   };
@@ -379,8 +385,8 @@ export default function Classroom({ user }: { user: User }) {
                   {t.replayQuiz}
                 </button>}
                 {/* With a quiz, the lesson completes by finishing it; the button only shows afterwards.
-                    Lessons without a quiz can still be ticked off by hand. */}
-                {(completed || interactiveQuizDone || !interactiveHasQuiz) && <button
+                    Without one it appears on the last page (or always, if the page never reports its position). */}
+                {(completed || interactiveQuizDone || (!interactiveHasQuiz && interactiveAtEnd !== false)) && <button
                   onClick={() => handleCompleteProject(interactiveHasQuiz && !interactiveQuizDone)}
                   disabled={completed}
                   className={`flex items-center gap-2 rounded-xl px-5 py-2 font-bold shadow-md ${completed

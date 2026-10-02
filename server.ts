@@ -106,7 +106,7 @@ function installWidgetFiles(tmpPath: string, originalName: string, folder: strin
 // Injected into the HTML of interactive lesson versions. The page runs in a
 // sandbox without access to the app, so it talks to the classroom through
 // postMessage only. Pages can call window.KidsAcademy.* to report quiz
-// progress; selecting text always offers "ask the teacher".
+// progress and reading position; selecting text always offers "ask the teacher".
 const LESSON_BRIDGE = `<script>(function(){
 if(window.KidsAcademy)return;
 function send(m){m.source='kidsacademy';try{window.top.postMessage(m,'*');}catch(e){}}
@@ -115,6 +115,8 @@ window.KidsAcademy={
   hasQuiz:function(){send({type:'hasQuiz'});},
   // Report one answered question (correct: boolean, id: any stable question id).
   answer:function(correct,id){send({type:"answer",correct:!!correct,id:String(id==null?"":id)});},
+  // Report where the learner is; atEnd=true on the last page of a lesson without a quiz.
+  progress:function(atEnd){send({type:'progress',atEnd:!!atEnd});},
   // Report that the quiz is finished.
   finished:function(){send({type:"finished"});},
   ask:function(text){send({type:'ask',text:String(text||'').slice(0,600)});}
