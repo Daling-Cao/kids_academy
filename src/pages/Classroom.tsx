@@ -42,8 +42,15 @@ export default function Classroom({ user }: { user: User }) {
   const [replayKey, setReplayKey] = useState(0);
   // Completed article segments the student chose to practice again.
   const [practiceSegs, setPracticeSegs] = useState<Record<number, boolean>>({});
+  const interactiveFrame = useRef<HTMLIFrameElement>(null);
   const completedRef = useRef(false);
   completedRef.current = completed;
+
+  // Tell the lesson page whether it is completed, so it can unlock its chapters.
+  const sendLessonState = () => {
+    interactiveFrame.current?.contentWindow?.postMessage({ source: 'kidsacademy-host', type: 'state', completed }, '*');
+  };
+  useEffect(sendLessonState, [completed]);
 
   useEffect(() => {
     setInteractiveHasQuiz(false);
@@ -359,6 +366,8 @@ export default function Classroom({ user }: { user: User }) {
           <div>
             {/* Sandboxed like every widget: scripts run, but no access to the app origin or /api/* */}
             <iframe
+              ref={interactiveFrame}
+              onLoad={sendLessonState}
               key={`${interactive.id}-${replayKey}`}
               src={`/widget-files/${interactive.id}/${interactive.entryFile || 'index.html'}`}
               title={interactive.name}

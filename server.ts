@@ -112,6 +112,8 @@ function installWidgetFiles(tmpPath: string, originalName: string, folder: strin
 const LESSON_BRIDGE = `<script>(function(){
 if(window.KidsAcademy)return;
 function send(m){m.source='kidsacademy';try{window.top.postMessage(m,'*');}catch(e){}}
+var cbs=[];
+window.addEventListener('message',function(e){var m=e.data;if(e.source!==window.parent||!m||m.source!=='kidsacademy-host'||m.type!=='state')return;window.KidsAcademy.completed=!!m.completed;cbs.forEach(function(f){try{f(!!m.completed);}catch(x){}});});
 window.KidsAcademy={
   // Declare that the page has a quiz, so finishing it can be rewarded.
   hasQuiz:function(){send({type:'hasQuiz'});},
@@ -121,6 +123,9 @@ window.KidsAcademy={
   progress:function(atEnd){send({type:'progress',atEnd:!!atEnd});},
   // Report that the quiz is finished.
   finished:function(){send({type:"finished"});},
+  // Called with true once the learner has completed this lesson (also after a reload), so the page can unlock its navigation.
+  onCompleted:function(fn){cbs.push(fn);if(window.KidsAcademy.completed)fn(true);},
+  completed:false,
   ask:function(text){send({type:'ask',text:String(text||'').slice(0,600)});}
 };
 var btn=null,timer=null;
