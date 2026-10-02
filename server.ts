@@ -603,7 +603,8 @@ async function startServer() {
     const file = path.resolve(folder, rel);
     if (!file.startsWith(folder + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return next();
     let html = fs.readFileSync(file, 'utf-8');
-    html = /<\/body>/i.test(html) ? html.replace(/<\/body>/i, () => `${LESSON_BRIDGE}</body>`) : html + LESSON_BRIDGE;
+    // Injected first so the page's own scripts can call window.KidsAcademy while they load.
+    html = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, m => `${m}${LESSON_BRIDGE}`) : LESSON_BRIDGE + html;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Content-Security-Policy', widgetCsp);
     res.setHeader('X-Content-Type-Options', 'nosniff');
