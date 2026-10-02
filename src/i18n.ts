@@ -68,6 +68,7 @@ const translations = {
     interactiveMarkDone: 'Lektion abschließen',
     interactiveToArticle: 'Zum Artikel & Quiz →',
     replayQuiz: '🔄 Nochmal üben',
+    restartLesson: '↺ Zurück zum Anfang',
     generateTestData: 'Testdaten generieren',
 
     // Homework (Hausaufgabe)

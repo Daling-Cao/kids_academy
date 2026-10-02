@@ -299,6 +299,10 @@ export default function Classroom({ user }: { user: User }) {
   const interactive = display === 'article' ? null : project.interactiveWidget || null;
   const interactiveOnly = !!interactive && display === 'interactive' && !isHomework;
   const showInteractive = !!interactive && (interactiveOnly || view === 'interactive');
+  // With a quiz the lesson completes by finishing it; without one the button appears on the last page.
+  const showFinishButton = completed || interactiveQuizDone || (!interactiveHasQuiz && interactiveAtEnd !== false);
+  // The bar below the lesson is only worth its space when it has a button to offer.
+  const showLessonBar = showFinishButton || !interactiveOnly;
 
   return (
     <>
@@ -376,7 +380,7 @@ export default function Classroom({ user }: { user: User }) {
               allow="fullscreen"
               sandbox="allow-scripts allow-forms allow-downloads allow-modals"
             />
-            <div className="flex flex-wrap items-center justify-between gap-4 border-t-2 border-orange-100 bg-orange-50/60 px-6 py-4">
+            {showLessonBar && <div className="flex flex-wrap items-center justify-between gap-4 border-t-2 border-orange-100 bg-orange-50/60 px-6 py-4">
               <p className="min-w-0 flex-1 text-stone-600 font-medium">
                 {completed ? t.interactiveCompletedHint : interactiveHasQuiz ? t.interactiveQuizHint : t.interactiveFinishHint}
               </p>
@@ -391,11 +395,11 @@ export default function Classroom({ user }: { user: User }) {
                   onClick={handleReplayInteractive}
                   className="rounded-xl border-2 border-orange-200 bg-white px-4 py-2 font-bold text-orange-700 hover:bg-orange-50"
                 >
-                  {t.replayQuiz}
+                  {t.restartLesson}
                 </button>}
                 {/* With a quiz, the lesson completes by finishing it; the button only shows afterwards.
                     Without one it appears on the last page (or always, if the page never reports its position). */}
-                {(completed || interactiveQuizDone || (!interactiveHasQuiz && interactiveAtEnd !== false)) && <button
+                {showFinishButton && <button
                   onClick={() => handleCompleteProject(interactiveHasQuiz && !interactiveQuizDone)}
                   disabled={completed}
                   className={`flex items-center gap-2 rounded-xl px-5 py-2 font-bold shadow-md ${completed
@@ -412,7 +416,7 @@ export default function Classroom({ user }: { user: User }) {
                   {t.interactiveToArticle}
                 </button>}
               </div>
-            </div>
+            </div>}
           </div>
         )}
 
