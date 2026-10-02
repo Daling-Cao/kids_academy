@@ -378,9 +378,9 @@ export default function Classroom({ user }: { user: User }) {
                 >
                   {t.replayQuiz}
                 </button>}
-                <button
-                  // Without a finished quiz the lesson is marked as done but earns no coin,
-                  // otherwise the reward could be claimed without answering anything.
+                {/* With a quiz, the lesson completes by finishing it; the button only shows afterwards.
+                    Lessons without a quiz can still be ticked off by hand. */}
+                {(completed || interactiveQuizDone || !interactiveHasQuiz) && <button
                   onClick={() => handleCompleteProject(interactiveHasQuiz && !interactiveQuizDone)}
                   disabled={completed}
                   className={`flex items-center gap-2 rounded-xl px-5 py-2 font-bold shadow-md ${completed
@@ -389,7 +389,7 @@ export default function Classroom({ user }: { user: User }) {
                 >
                   {completed ? <CheckSquare size={20} /> : <Square size={20} />}
                   {completed ? t.fullyCompleted : t.interactiveMarkDone}
-                </button>
+                </button>}
                 {!interactiveOnly && <button
                   onClick={() => { setView('article'); window.scrollTo({ top: 0 }); }}
                   className="rounded-xl bg-blue-500 px-5 py-2 font-bold text-white shadow-md hover:bg-blue-600"
