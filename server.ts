@@ -68,12 +68,14 @@ function installWidgetFiles(tmpPath: string, originalName: string, folder: strin
   const entries = zip.getEntries();
 
   // Determine if all entries share a common root folder (typical when zipping a folder)
-  const rootFolders = new Set(entries.map(e => e.entryName.split('/')[0]));
+  // Zips made on Windows sometimes use backslashes; on Linux those would become part of the file name.
+  const entryPath = (e: { entryName: string }) => e.entryName.replace(/\\/g, '/');
+  const rootFolders = new Set(entries.map(e => entryPath(e).split('/')[0]));
   const singleRoot = rootFolders.size === 1 ? [...rootFolders][0] : null;
 
   for (const entry of entries) {
     if (entry.isDirectory) continue;
-    let relPath = entry.entryName;
+    let relPath = entryPath(entry);
     if (singleRoot) relPath = relPath.slice(singleRoot.length + 1);
     if (!relPath) continue;
 
