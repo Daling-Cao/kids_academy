@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
+    "test": "node --import tsx --test src/utils/studentList.test.ts",
     "init-db": "tsx init-db.ts"
   },
   "dependencies": {
