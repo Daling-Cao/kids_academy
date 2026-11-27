@@ -2,25 +2,48 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Save, X, Users, Lock, Unlock, CheckCircle, PlayCircle, Eye, EyeOff, Building2, BookOpen, KeyRound, Clock, MapPin, FileUp, Download, XCircle, Send, RotateCcw } from 'lucide-react';
 import DOMPurify from 'isomorphic-dompurify';
 import { authFetch } from '../App';
-import type { User, Building, StudentProgress, BuildingWithVisibility, StudentGroup, HomeworkSubmission, AssignmentSubmission, AssignmentOverviewProject } from '../types';
+import type { User, StudentProgress, BuildingWithVisibility, StudentGroup, HomeworkSubmission, AssignmentSubmission, AssignmentOverviewProject } from '../types';
 import { useI18n } from '../i18n';
 import GroupsPanel from '../components/GroupsPanel';
+import {
+    applyStudentCoinsUpdate,
+    filterAndSortStudents,
+    getStudentCoins,
+    getStudentDisplayName,
+    type StudentGroupFilter,
+    type StudentSortOrder,
+} from '../utils/studentList';
 
-export default function StudentsTab() {
+export interface StudentsTabProps {
+    initialStudents?: User[];
+    initialGroups?: StudentGroup[];
+    initialGroupFilter?: StudentGroupFilter;
+    initialSortOrder?: StudentSortOrder;
+    initialSelectedStudent?: User | null;
+}
+
+export default function StudentsTab({
+    initialStudents = [],
+    initialGroups = [],
+    initialGroupFilter = 'all',
+    initialSortOrder = 'default',
+    initialSelectedStudent = null,
+}: StudentsTabProps = {}) {
     const { t } = useI18n();
-    const [students, setStudents] = useState<User[]>([]);
+    const [students, setStudents] = useState<User[]>(initialStudents);
     const [showAddForm, setShowAddForm] = useState(false);
     const [editingStudent, setEditingStudent] = useState<{ id: number; username: string; password: string } | null>(null);
-    const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
+    const [selectedStudent, setSelectedStudent] = useState<User | null>(initialSelectedStudent);
     const [progressData, setProgressData] = useState<StudentProgress[]>([]);
     const [buildingsData, setBuildingsData] = useState<BuildingWithVisibility[]>([]);
     const [homeworkData, setHomeworkData] = useState<HomeworkSubmission[]>([]);
     const [assignmentData, setAssignmentData] = useState<AssignmentSubmission[]>([]);
     const [assignmentOverview, setAssignmentOverview] = useState<AssignmentOverviewProject[]>([]);
     const [newStudent, setNewStudent] = useState({ username: '', password: '' });
-    const [groups, setGroups] = useState<StudentGroup[]>([]);
+    const [groups, setGroups] = useState<StudentGroup[]>(initialGroups);
     // Which students the list shows: everyone, one group, or those without a group.
-    const [groupFilter, setGroupFilter] = useState<'all' | 'none' | number>('all');
+    const [groupFilter, setGroupFilter] = useState<StudentGroupFilter>(initialGroupFilter);
+    const [sortOrder, setSortOrder] = useState<StudentSortOrder>(initialSortOrder);
     const [managingGroups, setManagingGroups] = useState(false);
 
     useEffect(() => {
@@ -35,11 +58,7 @@ export default function StudentsTab() {
             .catch(err => console.error('Failed to fetch groups:', err));
     };
 
-    const visibleStudents = students.filter(s =>
-        groupFilter === 'all' ? true
-            : groupFilter === 'none' ? !s.groupId
-                : s.groupId === groupFilter
-    );
+    const visibleStudents = filterAndSortStudents(students, groupFilter, sortOrder);
 
     const handleChangeGroup = async (student: User, groupId: number | null) => {
         await authFetch(`/api/users/${student.id}/group`, {
@@ -60,7 +79,7 @@ export default function StudentsTab() {
     const fetchStudents = () => {
         authFetch('/api/users')
             .then(res => res.json())
-            .then(data => setStudents(data))
+            .then(data => setStudents(Array.isArray(data) ? data : []))
             .catch(err => console.error('Failed to fetch students:', err));
     };
 
@@ -173,7 +192,7 @@ export default function StudentsTab() {
         }
     };
 
-    const handleUpdateCoins = async (studentId: number, amount: number, reason: string) => {
+    const handleUpdateCoins = async (studentId: number, amount: number, reason: string): Promise<boolean> => {
         try {
             const res = await authFetch(`/api/users/${studentId}/coins`, {
                 method: 'POST',
@@ -181,14 +200,19 @@ export default function StudentsTab() {
             });
             const data = await res.json();
             if (data.success) {
+                const authoritativeCoins = getStudentCoins({ coins: data.coins });
+                setStudents(prev => applyStudentCoinsUpdate(prev, null, studentId, authoritativeCoins).students);
+                setSelectedStudent(prev => applyStudentCoinsUpdate([], prev, studentId, authoritativeCoins).selectedStudent);
                 fetchStudents();
-                setSelectedStudent((prev: any) => prev ? { ...prev, coins: data.coins } : prev);
                 alert(`Successfully adjusted coins by ${amount}.`);
+                return true;
             } else {
                 alert(data.message || 'Failed to adjust coins.');
+                return false;
             }
         } catch {
             alert('An error occurred while adjusting coins.');
+            return false;
         }
     };
 
@@ -216,27 +240,52 @@ export default function StudentsTab() {
                     </div>
                 </div>
 
-                {groups.length > 0 && (
-                    <div className="px-4 pt-3 flex flex-wrap gap-1.5">
+                <div className="px-4 py-2.5 border-b border-orange-100 bg-orange-50/40 space-y-2">
+                    {groups.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                            {[
+                                { key: 'all' as const, label: t.allStudents },
+                                ...groups.map(g => ({ key: g.id, label: g.name })),
+                                { key: 'none' as const, label: t.noGroup },
+                            ].map(({ key, label }) => (
+                                <button
+                                    key={String(key)}
+                                    type="button"
+                                    aria-pressed={groupFilter === key}
+                                    onClick={() => setGroupFilter(key)}
+                                    className={`px-2.5 py-1 rounded-full text-xs font-bold border transition-colors ${groupFilter === key
+                                        ? 'bg-orange-500 border-orange-500 text-white'
+                                        : 'bg-white border-orange-200 text-orange-700 hover:bg-orange-100'
+                                        }`}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t.sortLabel}>
+                        <span className="text-xs font-semibold text-stone-500 mr-0.5">{t.sortLabel}</span>
                         {[
-                            { key: 'all' as const, label: t.allStudents },
-                            ...groups.map(g => ({ key: g.id, label: g.name })),
-                            { key: 'none' as const, label: t.noGroup },
-                        ].map(({ key, label }) => (
+                            { key: 'default' as const, label: t.sortDefault, title: t.sortDefault },
+                            { key: 'coins-desc' as const, label: t.sortCoinsDesc, title: t.sortCoinsDescHint },
+                            { key: 'coins-asc' as const, label: t.sortCoinsAsc, title: t.sortCoinsAscHint },
+                        ].map(({ key, label, title }) => (
                             <button
-                                key={String(key)}
+                                key={key}
                                 type="button"
-                                onClick={() => setGroupFilter(key)}
-                                className={`px-2.5 py-1 rounded-full text-xs font-bold border transition-colors ${groupFilter === key
-                                    ? 'bg-orange-500 border-orange-500 text-white'
-                                    : 'bg-white border-orange-200 text-orange-700 hover:bg-orange-100'
+                                aria-pressed={sortOrder === key}
+                                title={title}
+                                onClick={() => setSortOrder(key)}
+                                className={`px-2.5 py-1 rounded-full text-xs font-bold border transition-colors ${sortOrder === key
+                                    ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
+                                    : 'bg-white border-amber-200 text-amber-800 hover:bg-amber-50'
                                     }`}
                             >
                                 {label}
                             </button>
                         ))}
                     </div>
-                )}
+                </div>
 
                 <div className="overflow-y-auto flex-grow p-4 space-y-3">
                     {showAddForm && (
@@ -264,10 +313,13 @@ export default function StudentsTab() {
                         </form>
                     )}
 
-                    {visibleStudents.map(student => (
+                    {visibleStudents.map(student => {
+                        const displayName = getStudentDisplayName(student);
+                        const studentCoins = getStudentCoins(student);
+                        return (
                         <div
                             key={student.id}
-                            className={`p-3 rounded-xl border-2 transition-colors cursor-pointer flex justify-between items-center ${selectedStudent?.id === student.id
+                            className={`p-3 rounded-xl border-2 transition-colors cursor-pointer flex justify-between items-center gap-2 ${selectedStudent?.id === student.id
                                     ? 'border-orange-400 bg-orange-50'
                                     : 'border-transparent hover:border-orange-200 bg-stone-50'
                                 }`}
@@ -304,17 +356,25 @@ export default function StudentsTab() {
                                 </form>
                             ) : (
                                 <>
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-3 min-w-0 flex-1">
                                         {student.avatar ? (
-                                            <img src={student.avatar} alt="Avatar" className="w-8 h-8 rounded-full object-cover border border-orange-200" />
+                                            <img src={student.avatar} alt="Avatar" className="w-8 h-8 shrink-0 rounded-full object-cover border border-orange-200" />
                                         ) : (
-                                            <div className="w-8 h-8 rounded-full bg-orange-300 flex items-center justify-center text-white font-bold text-sm">
-                                                {(student.name || student.username)[0].toUpperCase()}
+                                            <div className="w-8 h-8 shrink-0 rounded-full bg-orange-300 flex items-center justify-center text-white font-bold text-sm">
+                                                {displayName[0].toUpperCase()}
                                             </div>
                                         )}
-                                        <div>
-                                            <div className="font-bold text-stone-700">{student.name || student.username}</div>
-                                            {student.name && <div className="text-xs text-stone-500">@{student.username}</div>}
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                <span className="font-bold text-stone-700 truncate">{displayName}</span>
+                                                <span
+                                                    className="shrink-0 inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200"
+                                                    title={t.studentCoinsTitle(studentCoins)}
+                                                >
+                                                    🪙 {studentCoins}
+                                                </span>
+                                            </div>
+                                            {student.name?.trim() && <div className="text-xs text-stone-500 truncate">@{student.username}</div>}
                                             {student.groupId && groups.some(g => g.id === student.groupId) && (
                                                 <span className="inline-block mt-0.5 text-[11px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
                                                     {groups.find(g => g.id === student.groupId)?.name}
@@ -327,9 +387,9 @@ export default function StudentsTab() {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex gap-1">
+                                    <div className="flex gap-1 shrink-0">
                                         <button
-                                            onClick={(e) => { e.stopPropagation(); handleResetPassword(student.id, student.name || student.username); }}
+                                            onClick={(e) => { e.stopPropagation(); handleResetPassword(student.id, displayName); }}
                                             className="p-1.5 text-orange-600 hover:bg-orange-100 rounded-lg"
                                             title="Reset Password"
                                         >
@@ -351,7 +411,8 @@ export default function StudentsTab() {
                                 </>
                             )}
                         </div>
-                    ))}
+                        );
+                    })}
                     {visibleStudents.length === 0 && !showAddForm && (
                         <div className="text-center text-stone-400 py-8">{t.noStudentsYet}</div>
                     )}
@@ -370,7 +431,7 @@ export default function StudentsTab() {
                     <>
                         <div className="p-6 border-b-2 border-orange-100 bg-orange-50">
                             <h2 className="text-2xl font-bold text-orange-800">
-                                {t.manageStudent} {selectedStudent.name || selectedStudent.username}
+                                {t.manageStudent} {getStudentDisplayName(selectedStudent)}
                             </h2>
                             <div className="text-sm text-stone-600 mt-2 flex flex-col sm:flex-row gap-1 sm:gap-6">
                                 <span className="flex items-center gap-1.5">
@@ -417,7 +478,7 @@ export default function StudentsTab() {
                                      <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-200/40 rounded-full blur-2xl -mt-10 -mr-10"></div>
                                      <div className="relative z-10 flex items-center gap-4">
                                         <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-3xl shadow-inner border border-amber-200 font-black text-amber-600">
-                                            {selectedStudent.coins || 0}
+                                            {getStudentCoins(selectedStudent)}
                                         </div>
                                         <div>
                                             <div className="font-bold text-stone-800 text-lg">Current Balance</div>
@@ -426,17 +487,17 @@ export default function StudentsTab() {
                                      </div>
                                      <form 
                                         className="relative z-10 flex items-center gap-2"
-                                        onSubmit={(e) => {
+                                        onSubmit={async (e) => {
                                             e.preventDefault();
-                                            const target = e.target as any;
-                                            const amount = parseInt(target.amount.value);
-                                            const reason = target.reason.value;
-                                            if (amount && reason) {
-                                                handleUpdateCoins(selectedStudent.id, amount, reason).then(() => {
+                                            const target = e.currentTarget;
+                                            const formData = new FormData(target);
+                                            const amount = parseInt(String(formData.get('amount') ?? ''), 10);
+                                            const reason = String(formData.get('reason') ?? '').trim();
+                                            if (!Number.isNaN(amount) && amount !== 0 && reason) {
+                                                const updated = await handleUpdateCoins(selectedStudent.id, amount, reason);
+                                                if (updated) {
                                                     target.reset();
-                                                    fetchStudents();
-                                                    setSelectedStudent(prev => prev ? { ...prev, coins: Math.max(0, (prev.coins || 0) + amount) } : null);
-                                                });
+                                                }
                                             }
                                         }}
                                      >

@@ -161,6 +161,13 @@ const translations = {
     studentList: 'Schülerliste',
     manageStudent: 'Verwalten:',
     buildingVisibility: 'Gebäudesichtbarkeit',
+    sortLabel: 'Sortieren:',
+    sortDefault: 'Standard',
+    sortCoinsDesc: '🪙 Punkte ↓',
+    sortCoinsAsc: '🪙 Punkte ↑',
+    sortCoinsDescHint: 'Nach BlockCoins absteigend sortieren',
+    sortCoinsAscHint: 'Nach BlockCoins aufsteigend sortieren',
+    studentCoinsTitle: (coins: number) => `${coins} BlockCoins`,
 
     // Teacher - Student groups
     groups: 'Gruppen',
